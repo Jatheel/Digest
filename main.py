@@ -10,6 +10,7 @@ Run it with:
 """
 
 import asyncio
+import hashlib
 import html
 import json
 import math
@@ -20,7 +21,7 @@ from pathlib import Path
 from typing import Iterable
 
 import feedparser
-from fastapi import FastAPI, Body, Query
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -66,6 +67,9 @@ CACHE_TTL_SECONDS = 20 * 60  # refetch a topic at most every 20 minutes
 MAX_ARTICLES_PER_TOPIC = 25
 SUMMARY_MAX_CHARS = 220
 MAX_STALE_HOURS = 3 * 30 * 24
+GROUP_SIMILARITY_THRESHOLD = 0.38
+GROUP_MAX_HOURS = 48
+SUMMARY_MAX_SENTENCES = 6
 
 TRUSTED_SOURCES: dict[str, float] = {
     "Newsfirst": 0.97,
@@ -231,28 +235,84 @@ def _token_overlap(a: str, b: str) -> float:
 
 
 def deduplicate_articles(articles: Iterable[dict]) -> list[dict]:
-    deduped: list[dict] = []
+    """Group duplicate and closely related reports without discarding sources."""
+    grouped: list[dict] = []
     for article in sorted(articles, key=lambda a: a.get("published", ""), reverse=True):
         item_key = _story_signature(article)
         match_index = None
-        for idx, saved in enumerate(deduped):
+        article_time = _parse_article_time(str(article.get("published") or ""))
+        for idx, saved in enumerate(grouped):
             saved_key = _story_signature(saved)
-            if item_key and item_key == saved_key:
+            saved_time = _parse_article_time(str(saved.get("published") or ""))
+            within_window = (
+                article_time is None
+                or saved_time is None
+                or abs(article_time - saved_time) <= GROUP_MAX_HOURS * 3600
+            )
+            if within_window and item_key and item_key == saved_key:
                 match_index = idx
                 break
-            if _token_overlap(item_key, saved_key) >= 0.62:
+            if within_window and _token_overlap(item_key, saved_key) >= GROUP_SIMILARITY_THRESHOLD:
                 match_index = idx
                 break
         if match_index is None:
-            deduped.append(article)
+            grouped.append({
+                **article,
+                "id": _stable_story_id(article),
+                "sources": [_source_record(article)],
+            })
             continue
-        existing = deduped[match_index]
-        if article.get("published") and existing.get("published"):
-            if article["published"] > existing["published"]:
-                deduped[match_index] = article
-        elif article.get("source", "").lower() in TRUSTED_SOURCES and existing.get("source", "").lower() not in TRUSTED_SOURCES:
-            deduped[match_index] = article
-    return deduped
+        grouped[match_index]["sources"].append(_source_record(article))
+    return grouped
+
+
+def _stable_story_id(article: dict) -> str:
+    signature = _story_signature(article) or str(article.get("link") or "untitled")
+    digest = hashlib.sha1(signature.encode("utf-8")).hexdigest()[:16]
+    return f"story-{digest}"
+
+
+def _source_record(article: dict) -> dict:
+    return {
+        "name": _canonical_source(article.get("source") or "Unknown"),
+        "url": str(article.get("link") or ""),
+        "summary": str(article.get("summary") or ""),
+        "published": str(article.get("published") or ""),
+    }
+
+
+def _sentence_parts(text: str) -> list[str]:
+    return [part.strip() for part in re.split(r"(?<=[.!?])\s+", text.strip()) if part.strip()]
+
+
+def generate_full_summary(title: str, sources: Iterable[dict]) -> str:
+    sentences: list[str] = []
+    for source in sources:
+        for sentence in _sentence_parts(str(source.get("summary") or "")):
+            if any(_token_overlap(sentence, saved) >= 0.85 for saved in sentences):
+                continue
+            sentences.append(sentence)
+            if len(sentences) >= SUMMARY_MAX_SENTENCES:
+                return " ".join(sentences)
+    return " ".join(sentences) or str(title or "")
+
+
+def choose_best_source(sources: Iterable[dict], topic: str, profile: dict, title: str = "") -> dict:
+    candidates = []
+    for source in sources:
+        candidate = {
+            "title": title,
+            "source": source.get("name") or "",
+            "summary": source.get("summary") or "",
+            "published": source.get("published") or "",
+            "link": source.get("url") or "",
+        }
+        if candidate["link"]:
+            candidates.append((logistic_news_score(candidate, topic, profile), candidate))
+    if not candidates:
+        return {"best_link": "", "best_source": ""}
+    _, best = max(candidates, key=lambda item: item[0])
+    return {"best_link": best["link"], "best_source": _canonical_source(best["source"])}
 
 
 def filter_seen_articles(articles: Iterable[dict], seen: set[str]) -> list[dict]:
@@ -410,23 +470,26 @@ def _fetch_topic_sync(topic: str) -> list[dict]:
     for a in articles:
         del a["_sort_key"]
 
-    deduped = deduplicate_articles(articles)
-    deduped = filter_seen_articles(deduped, USER_PROFILE.get("seen_articles", set()))
-    deduped = filter_stale_articles(deduped)
+    filtered = filter_seen_articles(articles, USER_PROFILE.get("seen_articles", set()))
+    filtered = filter_stale_articles(filtered)
 
     blocked_sources = {_canonical_source(v).lower() for v in USER_PROFILE.get("blocked_sources", [])}
     if USER_PROFILE.get("strict_local_only") and topic == "Sri Lanka":
-        deduped = [
-            article for article in deduped
+        filtered = [
+            article for article in filtered
             if (_canonical_source(article.get("source") or "").lower() in {"ada derana", "daily mirror", "newsfirst", "the island", "the sunday times", "sri lanka mirror"})
             or ("sri lanka" in (str(article.get("title") or "") + " " + str(article.get("summary") or "")).lower())
         ]
-    deduped = [
-        article for article in deduped if str(article.get("source") or "").lower() not in blocked_sources
+    filtered = [
+        article for article in filtered if _canonical_source(article.get("source") or "").lower() not in blocked_sources
     ]
 
+    grouped = deduplicate_articles(filtered)
+
     scored = []
-    for article in deduped:
+    for article in grouped:
+        article["full_summary"] = generate_full_summary(article.get("title") or "", article["sources"])
+        article.update(choose_best_source(article["sources"], topic, USER_PROFILE, article.get("title") or ""))
         article["_rank_score"] = logistic_news_score(article, topic, USER_PROFILE)
         published = str(article.get("published") or "")
         article["_published_ts"] = _parse_article_time(published) or 0
@@ -546,6 +609,22 @@ async def get_news(
         return {"error": f"Unknown topic '{topic}'. See /api/topics.", "articles": []}
     articles = await fetch_topic(topic, force=refresh)
     return {"topic": topic, "articles": articles, "cached_at": _cache[topic].fetched_at}
+
+
+@app.get("/api/news/{story_id}/details")
+async def get_story_details(story_id: str):
+    async with _cache_lock:
+        for cache in _cache.values():
+            for article in cache.articles:
+                if article.get("id") == story_id:
+                    return {
+                        "id": article.get("id"),
+                        "full_summary": article.get("full_summary") or article.get("summary", ""),
+                        "best_link": article.get("best_link") or article.get("link", ""),
+                        "best_source": article.get("best_source") or article.get("source", ""),
+                        "sources": article.get("sources", []),
+                    }
+    raise HTTPException(status_code=404, detail="Story is no longer in the topic cache")
 
 
 # Serve the frontend (static/index.html, manifest.json, sw.js, ...) at "/".

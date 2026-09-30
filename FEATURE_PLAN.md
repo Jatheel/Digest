@@ -35,7 +35,7 @@ Each item returned by `/api/news` should eventually have a stable structure simi
   "id": "story-unique-id",
   "title": "Parliament approves the new budget",
   "summary": "Short preview from the main RSS report.",
-  "full_summary": null,
+  "full_summary": "Combined summary of the reports.",
   "source": "Reuters",
   "best_link": "https://example.com/original-story",
   "published": "2026-09-30T12:00:00+00:00",
@@ -56,20 +56,20 @@ Each item returned by `/api/news` should eventually have a stable structure simi
 }
 ```
 
-`full_summary` may remain `null` until the user clicks `Read more`. This keeps the initial topic request fast.
+`full_summary` should be generated during the normal topic fetch and stored with the grouped story. The details endpoint must only read the already-cached story, so `Read more` never performs a network request.
 
 ## 4. Backend Implementation Plan
 
-### Phase 1: Preserve all matching sources
+### Phase 1: Group reports during the topic fetch
 
-Add a grouping function in `main.py`, for example:
+Fold grouping into the existing `_fetch_topic_sync` pipeline, after article cleanup and before ranking. Add a grouping function in `main.py`, for example:
 
 ```python
 def group_related_articles(articles):
     ...
 ```
 
-Use the existing title normalization and token-overlap helpers. Reports should be grouped when their normalized titles match or their similarity exceeds a chosen threshold. Add a publication time limit, such as 48 hours, to avoid grouping unrelated older stories.
+Use the existing title normalization and `_token_overlap` helpers. Exact normalized-title matches should group as before. For cross-outlet phrasing, use a separate starting threshold of about `0.35` to `0.40`, rather than reusing the near-duplicate threshold of `0.62`. Only compare reports within a 48-hour publication window to limit false positives. Keep the threshold easy to tune after inspecting real grouped output.
 
 Each group should contain:
 
@@ -78,27 +78,7 @@ Each group should contain:
 - The newest publication time.
 - A stable story ID.
 
-### Phase 2: Search configured feeds
-
-Create a source configuration containing RSS feeds that can be searched or checked for related stories:
-
-```python
-SOURCE_FEEDS = {
-    "Ada Derana": "...",
-    "Daily Mirror": "...",
-    "News First": "...",
-    "BBC": "...",
-    "Reuters": "...",
-    "AP": "...",
-    "Al Jazeera": "..."
-}
-```
-
-Use source RSS feeds and Google News RSS rather than scraping article pages initially. RSS is simpler, more reliable, and less likely to be blocked.
-
-Do not perform a large external search for every card during the initial page load. Search on demand when the user requests the expanded details, then cache the result.
-
-### Phase 3: Choose the best article link
+### Phase 2: Rank each grouped story and choose its primary link
 
 Add a function such as:
 
@@ -107,7 +87,7 @@ def choose_best_source(sources, topic, profile):
     ...
 ```
 
-Rank candidate sources using:
+Run `logistic_news_score` once for the representative article in each group. Rank candidate source links using:
 
 - Existing `TRUSTED_SOURCES` scores.
 - User blocked-source and trusted-source settings.
@@ -116,7 +96,7 @@ Rank candidate sources using:
 - Publication freshness.
 - Availability of a direct article URL.
 
-Return both the selected URL and source name:
+Return both the selected URL and source name while preserving the complete `sources` list on the group:
 
 ```json
 {
@@ -125,15 +105,17 @@ Return both the selected URL and source name:
 }
 ```
 
-### Phase 4: Generate the expanded summary
+### Phase 3: Generate the expanded summary during fetch
 
-Start with a local summary function that:
+Run a local summary function while the topic cache is being built:
 
 1. Combines descriptions from all matching RSS reports.
-2. Removes repeated sentences.
-3. Selects the most informative sentences.
-4. Produces approximately 3 to 6 sentences.
+2. Splits each short RSS description into sentences.
+3. Removes near-identical sentences using `_token_overlap` with a high threshold.
+4. Concatenates the remaining sentences, capped at approximately 6 sentences.
 5. Clearly avoids inventing details that are not present in the sources.
+
+RSS descriptions are already short, so do not add an NLP or extractive-summarization dependency for v1.
 
 Example function:
 
@@ -144,7 +126,7 @@ def generate_full_summary(title, sources):
 
 Later, an AI provider can be added behind this function. The API response should remain the same regardless of which summary implementation is used.
 
-### Phase 5: Add an article details endpoint
+### Phase 4: Make the article details endpoint an in-memory lookup
 
 Add an endpoint similar to:
 
@@ -154,11 +136,10 @@ GET /api/news/{story_id}/details
 
 The endpoint should:
 
-- Locate or search related reports.
-- Generate the full summary.
-- Select the best reading link.
-- Return all source links.
-- Cache the result for a short period.
+- Locate the story in the existing topic cache by its stable story ID.
+- Return the precomputed full summary, selected reading link, and all source links.
+- Perform zero network calls and no additional feed search.
+- Return a clear not-found response if the story is no longer in the topic cache.
 
 Example response:
 
@@ -213,18 +194,14 @@ The `Read more` button should stop event propagation so it does not accidentally
 
 ## 6. Caching and Performance
 
-Use two levels of caching:
-
-1. Existing topic cache for the initial RSS headline list.
-2. Story-details cache for grouped sources and expanded summaries.
+Use the existing topic cache as the single cache for headlines, grouped sources, selected links, and full summaries.
 
 Recommended starting values:
 
 - Topic cache: keep the existing 20-minute duration.
-- Story details cache: 30 to 60 minutes.
-- Limit the number of external feeds checked for one story.
-- Add timeouts so one unavailable source does not block the whole response.
-- Return the original RSS article if the additional source search fails.
+- Build the complete pipeline once per topic-cache refresh: fetch, clean, group, rank, summarize, and cache.
+- Keep existing feed timeouts and failure handling so an unavailable configured feed does not prevent other reports from being grouped.
+- On a details request, return the cached story immediately without a timeout or external dependency.
 
 ## 7. Testing Plan
 
@@ -236,8 +213,10 @@ Add backend tests in `test_news_ranking.py` for:
 - All source links being preserved.
 - Best-source selection respecting trust scores and blocked sources.
 - Duplicate sentences being removed from the full summary.
-- The details endpoint returning the expected JSON structure.
-- A failed source feed not breaking the entire story response.
+- Grouping respecting the 48-hour publication window.
+- The details endpoint returning the expected JSON structure from the topic cache.
+- The details endpoint making no network calls.
+- A failed source feed not breaking the topic fetch or grouped story response.
 
 Perform a manual frontend check for:
 
@@ -250,15 +229,14 @@ Perform a manual frontend check for:
 ## 8. Recommended Delivery Order
 
 1. Add stable story IDs.
-2. Replace destructive deduplication with grouped stories.
-3. Preserve all matching source reports.
-4. Add best-source selection.
-5. Add local full-summary generation.
-6. Add the story details API endpoint.
+2. Replace destructive deduplication inside `_fetch_topic_sync` with grouped stories and preserved source reports.
+3. Tune the separate cross-outlet grouping threshold around `0.35` to `0.40` with the 48-hour window.
+4. Add best-source selection and rank each group once.
+5. Add sentence-level local full-summary generation during fetch.
+6. Make the story details API endpoint a topic-cache lookup.
 7. Add the frontend `Read more` interaction.
-8. Add story-details caching.
-9. Add backend tests and manual browser checks.
-10. Add an optional AI summary provider if local summaries are not sufficient.
+8. Add backend tests and manual browser checks, including the no-network details path.
+9. Add an optional AI summary provider if local summaries are not sufficient.
 
 ## 9. Important Constraints
 

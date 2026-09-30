@@ -207,6 +207,26 @@
   .feedback-btn.interested { background: rgba(32, 128, 93, 0.08); }
   .feedback-btn.moderate { background: rgba(145, 120, 24, 0.08); }
   .feedback-btn.not_interested { background: rgba(160, 55, 55, 0.08); }
+  .details-toggle {
+    margin-top: 12px;
+    border: 1px solid var(--accent, var(--rule));
+    border-radius: 999px;
+    background: transparent;
+    color: var(--accent, var(--ink));
+    font-size: 12px;
+    padding: 7px 11px;
+    cursor: pointer;
+  }
+  .details {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .details p { margin: 0 0 10px; }
+  .details a { color: var(--accent, var(--ink)); }
+  .source-links { display: flex; flex-wrap: wrap; gap: 8px 14px; }
 
   .state {
     padding: 60px 24px;
@@ -283,7 +303,7 @@
   </main>
 
   <script>
-    const APP_VERSION = "digest-ui-v3";
+    const APP_VERSION = "digest-ui-v4";
     const ACCENTS = {
       "Sri Lanka": "var(--sriLanka)",
       "World": "var(--world)",
@@ -419,6 +439,69 @@
       });
     }
 
+    function renderStoryDetails(detailsEl, details, accent) {
+      detailsEl.innerHTML = "";
+      const summary = document.createElement("p");
+      summary.textContent = details.full_summary || "No expanded summary is available.";
+      detailsEl.appendChild(summary);
+
+      if (details.best_link) {
+        const bestLink = document.createElement("a");
+        bestLink.href = details.best_link;
+        bestLink.target = "_blank";
+        bestLink.rel = "noopener noreferrer";
+        bestLink.textContent = "Read full article" + (details.best_source ? " at " + details.best_source : "");
+        bestLink.style.color = accent;
+        detailsEl.appendChild(bestLink);
+      }
+
+      const otherSources = (details.sources || []).filter((source) => source.url && source.url !== details.best_link);
+      if (otherSources.length) {
+        const label = document.createElement("p");
+        label.textContent = "Other reports";
+        label.style.margin = "12px 0 6px";
+        detailsEl.appendChild(label);
+        const links = document.createElement("div");
+        links.className = "source-links";
+        otherSources.forEach((source) => {
+          const sourceLink = document.createElement("a");
+          sourceLink.href = source.url;
+          sourceLink.target = "_blank";
+          sourceLink.rel = "noopener noreferrer";
+          sourceLink.textContent = source.name || "Source";
+          sourceLink.style.color = accent;
+          links.appendChild(sourceLink);
+        });
+        detailsEl.appendChild(links);
+      }
+    }
+
+    async function loadStoryDetails(article, card, detailsEl, button, accent) {
+      if (!article.id) {
+        detailsEl.hidden = false;
+        detailsEl.textContent = "Details are unavailable for this story.";
+        return;
+      }
+      button.disabled = true;
+      button.textContent = "Loading…";
+      detailsEl.hidden = false;
+      detailsEl.textContent = "Loading details…";
+      try {
+        const res = await fetch("/api/news/" + encodeURIComponent(article.id) + "/details");
+        if (!res.ok) throw new Error("Details request failed");
+        renderStoryDetails(detailsEl, await res.json(), accent);
+        button.dataset.loaded = "true";
+        button.disabled = false;
+        button.textContent = "Hide details";
+      } catch (err) {
+        detailsEl.hidden = true;
+        detailsEl.textContent = "Couldn't load the expanded story. Try again.";
+        button.dataset.loaded = "false";
+        button.textContent = "Try again";
+        button.disabled = false;
+      }
+    }
+
     function renderArticles(topic, articles) {
       mainEl.innerHTML = "";
       if (!articles.length) {
@@ -433,7 +516,7 @@
 
         const link = document.createElement("a");
         link.className = "card-link";
-        link.href = a.link || "#";
+        link.href = a.best_link || a.link || "#";
         link.target = "_blank";
         link.rel = "noopener noreferrer";
 
@@ -460,6 +543,24 @@
         if (a.summary) link.appendChild(p);
         link.appendChild(meta);
 
+        const detailsButton = document.createElement("button");
+        detailsButton.type = "button";
+        detailsButton.className = "details-toggle";
+        detailsButton.textContent = "Read more";
+        const details = document.createElement("div");
+        details.className = "details";
+        details.hidden = true;
+        detailsButton.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (detailsButton.dataset.loaded !== "true") {
+            loadStoryDetails(a, card, details, detailsButton, accent);
+          } else {
+            details.hidden = !details.hidden;
+            detailsButton.textContent = details.hidden ? "Read more" : "Hide details";
+          }
+        });
+
         const feedback = document.createElement("div");
         feedback.className = "feedback";
         [
@@ -481,6 +582,8 @@
         });
 
         card.appendChild(link);
+        card.appendChild(detailsButton);
+        card.appendChild(details);
         card.appendChild(feedback);
         mainEl.appendChild(card);
       });
