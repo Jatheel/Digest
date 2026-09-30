@@ -544,4 +544,9 @@ async def ignore_ide_events():
     return {"status": "ignored"}
 
 
+@app.post("/api/v1/ingest/browser/event")
+async def ignore_browser_events():
+    return {"status": "ignored"}
+
+
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
