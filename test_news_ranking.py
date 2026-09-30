@@ -1,9 +1,50 @@
+import asyncio
 import unittest
+from unittest.mock import patch
 
-from main import deduplicate_articles, logistic_news_score, filter_seen_articles, filter_stale_articles
+from main import (
+    USER_PROFILE,
+    deduplicate_articles,
+    filter_seen_articles,
+    filter_stale_articles,
+    logistic_news_score,
+    record_feedback,
+)
 
 
 class NewsRankingTests(unittest.TestCase):
+    def test_interested_feedback_does_not_block_source(self):
+        original_profile = {key: value.copy() if isinstance(value, (list, set)) else value for key, value in USER_PROFILE.items()}
+        try:
+            USER_PROFILE["blocked_sources"] = []
+            USER_PROFILE["liked_keywords"] = []
+            with patch("main._save_profile"):
+                asyncio.run(record_feedback({
+                    "label": "interested",
+                    "title": "Budget update",
+                    "source": "Test Source",
+                    "link": "https://example.com/interested",
+                }))
+            self.assertEqual(USER_PROFILE["blocked_sources"], [])
+        finally:
+            USER_PROFILE.clear()
+            USER_PROFILE.update(original_profile)
+
+    def test_newsfirst_is_trusted_and_allowed_in_strict_local_mode(self):
+        article = {
+            "title": "President addresses parliament on new budget",
+            "source": "Newsfirst",
+            "summary": "",
+            "published": "2026-09-30T12:00:00+00:00",
+        }
+        profile = {
+            "trusted_sources": ["Newsfirst"],
+            "blocked_sources": [],
+            "strict_local_only": True,
+        }
+        score = logistic_news_score(article, "Sri Lanka", profile)
+        self.assertGreater(score, 0.9)
+
     def test_logistic_score_prioritizes_trusted_local_news_and_recent_items(self):
         article = {
             "title": "Sri Lanka economy expands in first quarter",

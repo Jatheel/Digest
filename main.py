@@ -68,7 +68,7 @@ SUMMARY_MAX_CHARS = 220
 MAX_STALE_HOURS = 3 * 30 * 24
 
 TRUSTED_SOURCES: dict[str, float] = {
-    "News First": 0.97,
+    "Newsfirst": 0.97,
     "Ada Derana": 0.96,
     "Daily Mirror": 0.94,
     "The Sunday Times": 0.92,
@@ -85,6 +85,11 @@ TRUSTED_SOURCES: dict[str, float] = {
 }
 
 PROFILE_PATH = Path(__file__).with_name("user_profile.json")
+
+SOURCE_ALIASES = {
+    "news first": "Newsfirst",
+    "newsfirst": "Newsfirst",
+}
 
 DEFAULT_USER_PROFILE = {
     "topic_weights": {
@@ -112,11 +117,16 @@ def _coerce_profile(profile: dict | None = None) -> dict:
             base[key] = value
     base["liked_keywords"] = [str(v).lower() for v in base.get("liked_keywords", [])]
     base["disliked_keywords"] = [str(v).lower() for v in base.get("disliked_keywords", [])]
-    base["blocked_sources"] = [str(v) for v in base.get("blocked_sources", [])]
-    base["trusted_sources"] = [str(v) for v in base.get("trusted_sources", list(TRUSTED_SOURCES.keys()))]
+    base["blocked_sources"] = [_canonical_source(v) for v in base.get("blocked_sources", [])]
+    base["trusted_sources"] = [_canonical_source(v) for v in base.get("trusted_sources", list(TRUSTED_SOURCES.keys()))]
     base["strict_local_only"] = bool(base.get("strict_local_only", True))
     base["seen_articles"] = set(str(v) for v in base.get("seen_articles", []))
     return base
+
+
+def _canonical_source(source: str) -> str:
+    source_text = str(source).strip()
+    return SOURCE_ALIASES.get(source_text.lower(), source_text)
 
 
 def _save_profile(profile: dict) -> None:
@@ -306,9 +316,9 @@ def _extract_keywords(text: str) -> list[str]:
 
 def logistic_news_score(article: dict, topic: str, profile: dict | None = None) -> float:
     profile = profile or {}
-    source_name = str(article.get("source") or "Unknown")
+    source_name = _canonical_source(article.get("source") or "Unknown")
     source_name_lower = source_name.lower()
-    blocked_sources = {str(v).lower() for v in profile.get("blocked_sources", [])}
+    blocked_sources = {_canonical_source(v).lower() for v in profile.get("blocked_sources", [])}
     if source_name_lower in blocked_sources:
         return 0.0
 
@@ -321,7 +331,7 @@ def logistic_news_score(article: dict, topic: str, profile: dict | None = None) 
         for token in [
             "daily mirror",
             "ada derana",
-            "news first",
+            "newsfirst",
             "sri lanka",
             "sunday times",
             "the island",
@@ -404,11 +414,11 @@ def _fetch_topic_sync(topic: str) -> list[dict]:
     deduped = filter_seen_articles(deduped, USER_PROFILE.get("seen_articles", set()))
     deduped = filter_stale_articles(deduped)
 
-    blocked_sources = {str(v).lower() for v in USER_PROFILE.get("blocked_sources", [])}
+    blocked_sources = {_canonical_source(v).lower() for v in USER_PROFILE.get("blocked_sources", [])}
     if USER_PROFILE.get("strict_local_only") and topic == "Sri Lanka":
         deduped = [
             article for article in deduped
-            if (str(article.get("source") or "").lower() in {"ada derana", "daily mirror", "news first", "the island", "the sunday times", "sri lanka mirror"})
+            if (_canonical_source(article.get("source") or "").lower() in {"ada derana", "daily mirror", "newsfirst", "the island", "the sunday times", "sri lanka mirror"})
             or ("sri lanka" in (str(article.get("title") or "") + " " + str(article.get("summary") or "")).lower())
         ]
     deduped = [
@@ -475,8 +485,8 @@ async def update_profile_settings(payload: dict = Body(...)):
     trusted_sources = payload.get("trusted_sources", USER_PROFILE.get("trusted_sources", list(TRUSTED_SOURCES.keys())))
     blocked_sources = payload.get("blocked_sources", USER_PROFILE.get("blocked_sources", []))
     strict_local_only = bool(payload.get("strict_local_only", USER_PROFILE.get("strict_local_only", True)))
-    USER_PROFILE["trusted_sources"] = [str(v) for v in trusted_sources]
-    USER_PROFILE["blocked_sources"] = [str(v) for v in blocked_sources]
+    USER_PROFILE["trusted_sources"] = [_canonical_source(v) for v in trusted_sources]
+    USER_PROFILE["blocked_sources"] = [_canonical_source(v) for v in blocked_sources]
     USER_PROFILE["strict_local_only"] = strict_local_only
     _save_profile(USER_PROFILE)
     return {"status": "saved", "strict_local_only": strict_local_only, "trusted_sources": USER_PROFILE["trusted_sources"]}
@@ -499,8 +509,11 @@ async def record_feedback(payload: dict = Body(...)):
     if title:
         profile["seen_articles"].add(_normalize_text(title))
 
-    if source:
-        profile["blocked_sources"] = list(dict.fromkeys(profile.get("blocked_sources", []) + [source]))
+    if source and label == "not_interested":
+        canonical_source = _canonical_source(source)
+        profile["blocked_sources"] = list(dict.fromkeys(
+            profile.get("blocked_sources", []) + [canonical_source]
+        ))
 
     if title or link:
         keywords = _extract_keywords(f"{title} {source} {link}")
