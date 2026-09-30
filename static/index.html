@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#152029" />
+<title>Digest</title>
+<link rel="manifest" href="/manifest.json" />
+<link rel="apple-touch-icon" href="/icon-192.png" />
+<style>
+  :root {
+    --paper: #F5F6F3;
+    --paper-dim: #EBECE8;
+    --ink: #14171A;
+    --ink-muted: #6B7278;
+    --rule: #DEE1DC;
+    --sriLanka: #0E6E5F;
+    --world: #3C4CA0;
+    --technology: #1D5FA8;
+    --business: #7A5B12;
+    --sports: #B0501E;
+    --science: #6A3E9E;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--paper);
+    padding-top: env(safe-area-inset-top, 0px);
+    border-bottom: 1px solid var(--rule);
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px 10px;
+  }
+  .topbar h1 {
+    margin: 0;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .topbar .updated {
+    font-size: 12px;
+    color: var(--ink-muted);
+    margin-top: 2px;
+  }
+  button.icon-btn {
+    border: none;
+    background: transparent;
+    padding: 8px;
+    cursor: pointer;
+    color: var(--ink);
+    border-radius: 999px;
+    display: flex;
+  }
+  button.icon-btn:active { background: var(--paper-dim); }
+  button.icon-btn.spinning svg { animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .settings-wrap {
+    padding: 8px 16px 10px;
+  }
+  .settings-panel {
+    display: none;
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    background: var(--paper);
+    padding: 12px;
+    margin-top: 8px;
+  }
+  .settings-panel.visible {
+    display: block;
+  }
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .settings-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .source-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 12px;
+  }
+  .settings-actions button {
+    border: 1px solid var(--rule);
+    background: var(--paper-dim);
+    border-radius: 999px;
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--ink);
+  }
+
+  .tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 0 16px 12px;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 0 0 auto;
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 14px;
+    color: var(--ink-muted);
+    background: transparent;
+    border: 1px solid var(--rule);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tab.active {
+    color: var(--paper);
+    background: var(--accent, var(--ink));
+    border-color: transparent;
+  }
+
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 4px 0 40px;
+  }
+  .card {
+    display: block;
+    color: inherit;
+    padding: 16px 20px 16px 17px;
+    border-left: 3px solid var(--accent, var(--rule));
+    border-bottom: 1px solid var(--rule);
+  }
+  .card-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+  }
+  .card:active { background: var(--paper-dim); }
+  .card h2 {
+    margin: 0 0 6px;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 19px;
+    line-height: 1.32;
+    font-weight: 600;
+  }
+  .card p.summary {
+    margin: 0 0 10px;
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: #33383D;
+  }
+  .card .meta {
+    font-size: 12.5px;
+  }
+  .card .meta .source {
+    color: var(--accent, var(--ink-muted));
+    font-weight: 600;
+  }
+  .card .meta .time {
+    color: var(--ink-muted);
+    margin-left: 8px;
+  }
+  .feedback {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .feedback-btn {
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink);
+    font-size: 12px;
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .feedback-btn.interested { background: rgba(32, 128, 93, 0.08); }
+  .feedback-btn.moderate { background: rgba(145, 120, 24, 0.08); }
+  .feedback-btn.not_interested { background: rgba(160, 55, 55, 0.08); }
+
+  .state {
+    padding: 60px 24px;
+    text-align: center;
+    color: var(--ink-muted);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .state button {
+    margin-top: 14px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--ink);
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #14171A;
+      --paper-dim: #1D2226;
+      --ink: #F2F1EC;
+      --ink-muted: #8A9096;
+      --rule: #2A2F33;
+    }
+    .card p.summary { color: #C7CBCE; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <div>
+        <h1>Digest</h1>
+        <div class="updated" id="updated">—</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="icon-btn" id="settingsBtn" aria-label="Settings">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.13V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.86.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.13-.4H2.8a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.86l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6c.27.14.57.21.88.21H10a2 2 0 1 1 4 0h.09c.31 0 .61-.07.88-.21.28-.14.58-.21.88-.21a1.7 1.7 0 0 0 1.86.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.14.27.21.57.21.88V10a2 2 0 1 1 0 4h-.09c-.31 0-.61.07-.88.21-.28.14-.58.21-.88.21a1.7 1.7 0 0 0-1.86-.34l-.06.06a2 2 0 1 1-2.83-2.83Z"></path>
+          </svg>
+        </button>
+        <button class="icon-btn" id="refreshBtn" aria-label="Refresh">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2v6h-6"></path>
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+            <path d="M3 22v-6h6"></path>
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div class="settings-wrap">
+      <div class="settings-panel" id="settingsPanel">
+        <div class="setting-row">
+          <span>Strict local-first</span>
+          <input type="checkbox" id="localOnlyToggle" />
+        </div>
+        <div><strong>Trusted sources</strong></div>
+        <div class="settings-list" id="sourceList"></div>
+        <div class="settings-actions">
+          <button id="saveSettingsBtn" type="button">Save</button>
+        </div>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+
+  <main id="main">
+    <div class="state">Loading topics…</div>
+  </main>
+
+  <script>
+    const APP_VERSION = "digest-ui-v3";
+    const ACCENTS = {
+      "Sri Lanka": "var(--sriLanka)",
+      "World": "var(--world)",
+      "Technology": "var(--technology)",
+      "Business": "var(--business)",
+      "Sports": "var(--sports)",
+      "Science": "var(--science)",
+    };
+
+    const tabsEl = document.getElementById("tabs");
+    const mainEl = document.getElementById("main");
+    const updatedEl = document.getElementById("updated");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const settingsBtn = document.getElementById("settingsBtn");
+    const settingsPanel = document.getElementById("settingsPanel");
+    const localOnlyToggle = document.getElementById("localOnlyToggle");
+    const sourceList = document.getElementById("sourceList");
+    const saveSettingsBtn = document.getElementById("saveSettingsBtn");
+
+    let topics = [];
+    let activeTopic = null;
+    let lastCachedAt = {};
+    let profile = { trusted_sources: [], strict_local_only: true };
+
+    function timeAgo(pubDateStr) {
+      if (!pubDateStr) return "";
+      const then = new Date(pubDateStr).getTime();
+      if (Number.isNaN(then)) return "";
+      const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
+      if (mins < 1) return "just now";
+      if (mins < 60) return mins + "m ago";
+      const hrs = Math.round(mins / 60);
+      if (hrs < 24) return hrs + "h ago";
+      return Math.round(hrs / 24) + "d ago";
+    }
+
+    function renderTabs() {
+      tabsEl.innerHTML = "";
+      topics.forEach((topic) => {
+        const b = document.createElement("button");
+        b.className = "tab" + (topic === activeTopic ? " active" : "");
+        b.textContent = topic;
+        b.style.setProperty("--accent", ACCENTS[topic] || "var(--ink)");
+        b.addEventListener("click", () => selectTopic(topic));
+        tabsEl.appendChild(b);
+      });
+    }
+
+    function renderState(message, showRetry) {
+      mainEl.innerHTML = "";
+      const div = document.createElement("div");
+      div.className = "state";
+      div.textContent = message;
+      if (showRetry) {
+        const btn = document.createElement("button");
+        btn.textContent = "Try again";
+        btn.addEventListener("click", () => loadTopic(activeTopic, true));
+        div.appendChild(document.createElement("br"));
+        div.appendChild(btn);
+      }
+      mainEl.appendChild(div);
+    }
+
+    async function loadProfile() {
+      try {
+        const res = await fetch("/api/profile");
+        const data = await res.json();
+        profile = data || {};
+        localOnlyToggle.checked = !!profile.strict_local_only;
+        renderSourceList();
+      } catch (err) {
+        console.warn("Profile load failed", err);
+      }
+    }
+
+    function renderSourceList() {
+      const sources = [
+        "Ada Derana", "Daily Mirror", "News First", "The Island", "The Sunday Times",
+        "BBC", "Reuters", "AP", "Al Jazeera", "The Guardian", "CNN", "NPR",
+        "The New York Times"
+      ];
+      sourceList.innerHTML = "";
+      sources.forEach((source) => {
+        const row = document.createElement("label");
+        row.className = "source-toggle";
+        const checked = !(profile.blocked_sources || []).includes(source);
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = checked;
+        input.addEventListener("change", () => {
+          const blocked = new Set(profile.blocked_sources || []);
+          if (input.checked) blocked.delete(source);
+          else blocked.add(source);
+          profile.blocked_sources = Array.from(blocked);
+        });
+        row.appendChild(input);
+        row.appendChild(document.createTextNode(source));
+        sourceList.appendChild(row);
+      });
+    }
+
+    async function saveSettings() {
+      const payload = {
+        strict_local_only: localOnlyToggle.checked,
+        blocked_sources: profile.blocked_sources || [],
+        trusted_sources: (profile.trusted_sources || []).length ? profile.trusted_sources : [
+          "Ada Derana", "Daily Mirror", "News First", "The Island", "The Sunday Times",
+          "BBC", "Reuters", "AP", "Al Jazeera", "The Guardian", "CNN", "NPR",
+          "The New York Times"
+        ],
+      };
+      await fetch("/api/profile/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      settingsPanel.classList.toggle("visible", false);
+      if (activeTopic) loadTopic(activeTopic, true);
+    }
+
+    async function sendFeedback(article, label) {
+      const payload = {
+        key: article.link || (article.title + "|" + article.source),
+        title: article.title,
+        source: article.source,
+        link: article.link,
+        label,
+      };
+      await fetch("/api/profile/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    }
+
+    function renderArticles(topic, articles) {
+      mainEl.innerHTML = "";
+      if (!articles.length) {
+        renderState("No headlines came back for " + topic + " right now.", true);
+        return;
+      }
+      const accent = ACCENTS[topic] || "var(--ink)";
+      articles.forEach((a) => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.style.setProperty("--accent", accent);
+
+        const link = document.createElement("a");
+        link.className = "card-link";
+        link.href = a.link || "#";
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+
+        const h2 = document.createElement("h2");
+        h2.textContent = a.title;
+
+        const p = document.createElement("p");
+        p.className = "summary";
+        p.textContent = a.summary;
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        const src = document.createElement("span");
+        src.className = "source";
+        src.style.color = accent;
+        src.textContent = a.source || topic;
+        const time = document.createElement("span");
+        time.className = "time";
+        time.textContent = timeAgo(a.published);
+        meta.appendChild(src);
+        meta.appendChild(time);
+
+        link.appendChild(h2);
+        if (a.summary) link.appendChild(p);
+        link.appendChild(meta);
+
+        const feedback = document.createElement("div");
+        feedback.className = "feedback";
+        [
+          { label: "interested", text: "Interested" },
+          { label: "moderate", text: "Moderate" },
+          { label: "not_interested", text: "Not interested" },
+        ].forEach(({ label, text }) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "feedback-btn " + label;
+          btn.textContent = text;
+          btn.addEventListener("click", async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            await sendFeedback(a, label);
+            card.remove();
+          });
+          feedback.appendChild(btn);
+        });
+
+        card.appendChild(link);
+        card.appendChild(feedback);
+        mainEl.appendChild(card);
+      });
+    }
+
+    function setRefreshing(on) {
+      refreshBtn.classList.toggle("spinning", on);
+    }
+
+    async function loadTopic(topic, forceRefresh) {
+      activeTopic = topic;
+      renderTabs();
+      renderState("Loading " + topic + "…", false);
+      setRefreshing(true);
+      try {
+        const res = await fetch(
+          "/api/news?topic=" + encodeURIComponent(topic) + (forceRefresh ? "&refresh=true" : "")
+        );
+        const data = await res.json();
+        if (data.error) {
+          renderState(data.error, true);
+        } else {
+          renderArticles(topic, data.articles || []);
+          lastCachedAt[topic] = data.cached_at;
+          updatedEl.textContent = "Updated " + timeAgo(new Date(data.cached_at * 1000).toISOString());
+        }
+      } catch (err) {
+        renderState("Couldn't reach the server. Check it's running, then try again.", true);
+      } finally {
+        setRefreshing(false);
+      }
+    }
+
+    function selectTopic(topic) {
+      if (topic === activeTopic) return;
+      loadTopic(topic, false);
+    }
+
+    refreshBtn.addEventListener("click", () => {
+      if (activeTopic) loadTopic(activeTopic, true);
+    });
+
+    settingsBtn.addEventListener("click", () => {
+      settingsPanel.classList.toggle("visible");
+    });
+    saveSettingsBtn.addEventListener("click", saveSettings);
+
+    async function init() {
+      const storedVersion = localStorage.getItem("digest-ui-version");
+      if (storedVersion && storedVersion !== APP_VERSION) {
+        localStorage.setItem("digest-ui-version", APP_VERSION);
+        try {
+          await caches.keys();
+          await Promise.all((await caches.keys()).map((key) => caches.delete(key)));
+        } catch (err) {
+          console.warn("Cache clear failed", err);
+        }
+        window.location.reload();
+        return;
+      }
+      localStorage.setItem("digest-ui-version", APP_VERSION);
+
+      try {
+        await loadProfile();
+        const res = await fetch("/api/topics");
+        const data = await res.json();
+        topics = data.topics || [];
+        if (!topics.length) {
+          renderState("No topics configured yet.", false);
+          return;
+        }
+        renderTabs();
+        loadTopic(topics[0], false);
+      } catch (err) {
+        renderState("Couldn't reach the server. Check it's running, then try again.", true);
+      }
+    }
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+
+    init();
+  </script>
+</body>
+</html>
