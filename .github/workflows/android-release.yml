@@ -1,11 +1,18 @@
 # Builds the Android app (APK) and attaches it to a GitHub Release.
-# Push a tag like v1.0.0 to publish a release, or run it by hand from the
-# Actions tab to get the APK as a downloadable build artifact.
+# Push a tag like v1.0.0 to publish a release. Running it by hand from the
+# Actions tab, or pushing changes to the app's Android build, produces the APK
+# as a downloadable build artifact without making a release.
 name: Android release
 
 on:
   push:
     tags: ["v*"]
+    branches: [main]
+    paths:
+      - "android/**"
+      - "package.json"
+      - "capacitor.config.json"
+      - ".github/workflows/android-release.yml"
   workflow_dispatch:
 
 permissions:
@@ -35,32 +42,70 @@ jobs:
 
       - run: npx cap sync android
 
-      - name: Build APK
+      - name: Check signing key
+        id: signing
         env:
           # Optional but recommended: a fixed signing key lets new versions
           # install over old ones. See README "Signing the Android app".
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_B64" ]; then
+            echo "::warning::No signing key secrets set; building a debug-signed APK. Updates will need an uninstall first."
+            echo "mode=debug" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Tolerate spaces or line breaks picked up when pasting the secret.
+          if ! printf '%s' "$ANDROID_KEYSTORE_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/release.jks" 2>/dev/null; then
+            echo "::error title=Signing key::ANDROID_KEYSTORE_B64 is not valid base64. Copy the key file again and paste it into the secret."
+            exit 1
+          fi
+          echo "Decoded keystore: $(stat -c %s "$RUNNER_TEMP/release.jks") bytes"
+          if ! keytool -list -keystore "$RUNNER_TEMP/release.jks" -storepass "$KEYSTORE_PASSWORD" > "$RUNNER_TEMP/keys.txt" 2>&1; then
+            echo "::error title=Signing key::The keystore could not be opened: $(grep -m1 -iE 'error|exception' "$RUNNER_TEMP/keys.txt" | sed 's/^.*Exception: //'). Check KEYSTORE_PASSWORD and ANDROID_KEYSTORE_B64."
+            exit 1
+          fi
+          aliases=$(grep -iE 'PrivateKeyEntry' "$RUNNER_TEMP/keys.txt" | cut -d, -f1 | tr '\n' ' ')
+          if ! keytool -list -keystore "$RUNNER_TEMP/release.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null 2>&1; then
+            echo "::error title=Signing key::KEY_ALIAS does not match the keystore. Aliases in the keystore: ${aliases:-none}"
+            exit 1
+          fi
+          echo "Keystore OK (aliases: $aliases)"
+          echo "mode=release" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          MODE: ${{ steps.signing.outputs.mode }}
           VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.{0}', github.run_number) }}
         run: |
           cd android
           chmod +x gradlew
           VERSION_ARGS="-PversionCode=${{ github.run_number }} -PversionName=${VERSION_NAME#v}"
-          if [ -n "$ANDROID_KEYSTORE_B64" ]; then
-            echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
-            ./gradlew assembleRelease $VERSION_ARGS \
+          set +e
+          if [ "$MODE" = "release" ]; then
+            ./gradlew assembleRelease --console=plain $VERSION_ARGS \
               -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.jks" \
               -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
               -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
-              -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
-            cp app/build/outputs/apk/release/app-release.apk "../Digest-${VERSION_NAME}.apk"
+              -Pandroid.injected.signing.key.password="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}" 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+            status=${PIPESTATUS[0]}
+            apk=app/build/outputs/apk/release/app-release.apk
           else
-            echo "::warning::No signing key secrets set; building a debug-signed APK. Updates will need an uninstall first."
-            ./gradlew assembleDebug $VERSION_ARGS
-            cp app/build/outputs/apk/debug/app-debug.apk "../Digest-${VERSION_NAME}.apk"
+            ./gradlew assembleDebug --console=plain $VERSION_ARGS 2>&1 | tee "$RUNNER_TEMP/gradle.log"
+            status=${PIPESTATUS[0]}
+            apk=app/build/outputs/apk/debug/app-debug.apk
           fi
+          if [ "$status" -ne 0 ]; then
+            # Surface Gradle's explanation as an annotation on the run summary.
+            reason=$(grep -A8 'What went wrong' "$RUNNER_TEMP/gradle.log" | tr '\n' ' ' | cut -c1-900)
+            echo "::error title=Gradle build failed::${reason:-see the Build APK log}"
+            exit 1
+          fi
+          cp "$apk" "../Digest-${VERSION_NAME}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
