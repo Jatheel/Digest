@@ -136,6 +136,66 @@ class StoryTests(unittest.TestCase):
         self.assertEqual(story["social"][0]["platform"], "bluesky")
 
 
+class FocusTests(unittest.TestCase):
+    """Sports: football in full, other sports only when popular.
+    Technology: AI & IT on top."""
+
+    def sports_items(self):
+        football = item("Arsenal beat Chelsea 2-1 in London derby", "BBC Sport")
+        football["feed_focus"] = True
+        nfl = item("Eagles quarterback ruled out of NFL game", "ESPN")
+        tennis_popular = item("Verstappen wins Singapore Grand Prix", "BBC Sport")
+        tennis_popular["feed_top"] = True
+        cricket_quiet = item("County cricket club signs new bowler", "ESPNcricinfo")
+        return FILLER + [football, nfl, tennis_popular, cricket_quiet]
+
+    def test_football_detection_ignores_american_football(self):
+        self.assertTrue(p._matches_football("England 3-0 Czech Republic: Harry Kane marks record"))
+        self.assertTrue(p._matches_football("Transfer news: Liverpool eye striker"))
+        self.assertFalse(p._matches_football("Eagles quarterback ruled out of NFL game"))
+        self.assertFalse(p._matches_football("Sri Lanka beat India in cricket World Cup"))
+
+    def test_ai_it_detection(self):
+        self.assertTrue(p._matches_ai_it("OpenAI releases a new model"))
+        self.assertTrue(p._matches_ai_it("Hackers exploit zero-day in Jira"))
+        self.assertTrue(p._matches_ai_it("New AI-powered phone launched"))
+        self.assertFalse(p._matches_ai_it("Kai Havertz scores twice"))
+        self.assertFalse(p._matches_ai_it("Apple TV adds a new comedy series"))
+        # Shopping posts and consumer stories that only mention software in passing are not AI & IT.
+        self.assertFalse(p._is_ai_it("The best robot vacuum deals during October Prime Day", "", True))
+        self.assertFalse(p._is_ai_it("Tesla cars can power your house", "A software update enables it.", False))
+        self.assertTrue(p._is_ai_it("Tesla cars can power your house", "The feature uses an AI model.", False))
+
+    def test_sports_keeps_all_football_but_only_popular_other_sports(self):
+        with patch.object(p, "fetch_article_text", return_value=""):
+            stories = p.build_topic("Sports", self.sports_items(), NOW)
+        titles = {s["title"]: s for s in stories}
+        self.assertIn("Arsenal beat Chelsea 2-1 in London derby", titles)
+        self.assertEqual(titles["Arsenal beat Chelsea 2-1 in London derby"]["focus_label"], "Football")
+        self.assertIn("Verstappen wins Singapore Grand Prix", titles)  # a curated top story
+        self.assertEqual(titles["Verstappen wins Singapore Grand Prix"]["focus"], 0)
+        self.assertNotIn("County cricket club signs new bowler", titles)
+        self.assertNotIn("Eagles quarterback ruled out of NFL game", titles)
+
+    def test_focus_stories_rank_first(self):
+        with patch.object(p, "fetch_article_text", return_value=""):
+            stories = p.build_topic("Sports", self.sports_items(), NOW)
+        self.assertEqual(stories[0]["title"], "Arsenal beat Chelsea 2-1 in London derby")
+
+    def test_technology_puts_ai_and_it_first_and_keeps_the_rest(self):
+        items = [
+            item("Apple TV adds a new comedy series", "The Verge", hours_old=0.5),
+            item("Anthropic releases new Claude model for developers", "TechCrunch", hours_old=3),
+        ]
+        with patch.object(p, "fetch_article_text", return_value=""):
+            stories = p.build_topic("Technology", items, NOW)
+        self.assertEqual([s["title"] for s in stories], [
+            "Anthropic releases new Claude model for developers",
+            "Apple TV adds a new comedy series",
+        ])
+        self.assertEqual(stories[0]["focus_label"], "AI & IT")
+
+
 class ParserTests(unittest.TestCase):
     def test_reddit_link_post_resolves_to_external_article(self):
         entry = feedparser.FeedParserDict({

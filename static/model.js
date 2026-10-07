@@ -49,6 +49,7 @@
       Number(f.is_social_only || 0),
     ];
     const sparse = [["t:" + String(story.topic || ""), 1.0]];
+    if (story.focus) sparse.push(["f:" + String(story.topic || ""), 1.0]);
     if (story.best_source) sparse.push(["s:" + String(story.best_source).toLowerCase(), 1.0]);
     const keywords = story.keywords || [];
     if (keywords.length) {

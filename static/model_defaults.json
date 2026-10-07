@@ -11,7 +11,9 @@
     "t:Technology": -0.25,
     "t:Business": -0.2,
     "t:Sports": -0.1,
-    "t:Science": -0.3
+    "t:Science": -0.3,
+    "f:Sports": 1.5,
+    "f:Technology": 1.5
   },
   "learning_rate": 0.3,
   "dense_learning_rate_scale": 0.1,

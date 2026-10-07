@@ -124,6 +124,13 @@ cheaper one.
 
 - Add or change sources and categories in `FEEDS` in `news_pipeline.py`, and
   give a new category a colour in `ACCENTS` in `static/app.js`.
+- Each category can have a focus (`TOPIC_FOCUS` in `news_pipeline.py`).
+  **Sports** shows football in full, plus only the most popular stories from
+  other sports: Google News top stories, stories several outlets report, or
+  ones discussed on social media (up to 8). **Technology** puts AI & IT news
+  on top and keeps other tech below it. Focus stories get a badge and a
+  ranking boost (`f:Sports` / `f:Technology` in `static/model_defaults.json`),
+  which your reactions keep adjusting.
 - Tune default ranking weights (for example, how much you like each topic) in
   `static/model_defaults.json`.
 - Change where the app downloads news from in `static/config.js`.

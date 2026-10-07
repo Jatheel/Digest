@@ -9,7 +9,8 @@ news.json (default weights) and keeps the two implementations testable.
 Features per story:
   dense  - bias, recency, log(1 + #outlets), log(1 + #social posts), source
            trust, local outlet, mentions Sri Lanka, social-only
-  sparse - topic, best source and headline keywords, hashed (FNV-1a) into a
+  sparse - topic, topic focus (football in Sports, AI & IT in Technology),
+           best source and headline keywords, hashed (FNV-1a) into a
            fixed number of buckets so the model can learn interests without a
            vocabulary.
 
@@ -66,6 +67,8 @@ def featurize(story: dict, now: float, tau_hours: float = 18.0) -> dict:
         float(features.get("is_social_only", 0)),
     ]
     sparse = [["t:" + str(story.get("topic", "")), 1.0]]
+    if story.get("focus"):
+        sparse.append(["f:" + str(story.get("topic", "")), 1.0])
     if story.get("best_source"):
         sparse.append(["s:" + str(story["best_source"]).lower(), 1.0])
     keywords = story.get("keywords") or []

@@ -44,21 +44,27 @@ import summarizer
 # ---------------------------------------------------------------------------
 
 
-def news(url: str, name: str = "") -> dict:
-    """Publisher or aggregator RSS. `name` overrides the feed's own title."""
-    return {"kind": "news", "url": url, "name": name}
+def news(url: str, name: str = "", focus: bool = False, top: bool = False) -> dict:
+    """Publisher or aggregator RSS. `name` overrides the feed's own title.
+
+    focus=True marks a feed that is entirely about the topic's focus (e.g. a
+    football-only feed); top=True marks a curated "top stories" feed, whose
+    stories count as popular (see TOPIC_FOCUS).
+    """
+    return {"kind": "news", "url": url, "name": name, "focus": focus, "top": top}
 
 
-def reddit(subreddit: str) -> dict:
+def reddit(subreddit: str, focus: bool = False) -> dict:
     return {
         "kind": "reddit",
         "url": f"https://www.reddit.com/r/{subreddit}/top/.rss?t=day",
         "name": f"r/{subreddit}",
+        "focus": focus,
     }
 
 
-def mastodon(tag: str) -> dict:
-    return {"kind": "mastodon", "url": f"https://mastodon.social/tags/{tag}.rss", "name": f"#{tag}"}
+def mastodon(tag: str, focus: bool = False) -> dict:
+    return {"kind": "mastodon", "url": f"https://mastodon.social/tags/{tag}.rss", "name": f"#{tag}", "focus": focus}
 
 
 def youtube(channel_id: str, name: str) -> dict:
@@ -74,7 +80,7 @@ def bluesky(handle: str, name: str) -> dict:
 
 
 def _google(query: str = "", section: str = "", region: str = "US") -> str:
-    lang = "en-LK" if region == "LK" else "en-US"
+    lang = {"LK": "en-LK", "GB": "en-GB"}.get(region, "en-US")
     suffix = f"hl={lang}&gl={region}&ceid={region}:en"
     if section:
         return f"https://news.google.com/rss/headlines/section/topic/{section}?{suffix}"
@@ -115,13 +121,23 @@ FEEDS: dict[str, list[dict]] = {
         bluesky("theguardian.com", "The Guardian"),
     ],
     "Technology": [
+        # AI and IT first (see TOPIC_FOCUS), then the rest of tech.
+        news("https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", "The Verge", focus=True),
+        news("https://techcrunch.com/category/artificial-intelligence/feed/", "TechCrunch", focus=True),
+        news("https://www.technologyreview.com/topic/artificial-intelligence/feed", "MIT Technology Review", focus=True),
+        news(_google("artificial+intelligence+OR+AI+when:2d"), focus=True),
+        news("https://www.theregister.com/headlines.atom", "The Register"),
+        news("https://feeds.arstechnica.com/arstechnica/technology-lab", "Ars Technica"),
+        news("https://www.bleepingcomputer.com/feed/", "BleepingComputer"),
         news("https://feeds.bbci.co.uk/news/technology/rss.xml", "BBC"),
         news("https://www.theguardian.com/uk/technology/rss", "The Guardian"),
         news("https://feeds.arstechnica.com/arstechnica/index", "Ars Technica"),
         news("https://www.theverge.com/rss/index.xml", "The Verge"),
         news(_google(section="TECHNOLOGY")),
         reddit("technology"),
+        mastodon("ai", focus=True),
         mastodon("technology"),
+        bluesky("techcrunch.com", "TechCrunch"),
         bluesky("theverge.com", "The Verge"),
         bluesky("arstechnica.com", "Ars Technica"),
     ],
@@ -140,15 +156,19 @@ FEEDS: dict[str, list[dict]] = {
         bluesky("bloomberg.com", "Bloomberg"),
     ],
     "Sports": [
-        news(_google("football+OR+soccer")),
-        news("https://feeds.bbci.co.uk/sport/football/rss.xml", "BBC Sport"),
-        news("https://www.theguardian.com/football/rss", "The Guardian"),
+        # Football in full; other sports only when popular (see TOPIC_FOCUS).
+        news("https://feeds.bbci.co.uk/sport/football/rss.xml", "BBC Sport", focus=True),
+        news("https://www.theguardian.com/football/rss", "The Guardian", focus=True),
+        news("https://www.skysports.com/rss/11095", "Sky Sports", focus=True),
+        news(_google("football", region="GB"), focus=True),
+        news(_google(section="SPORTS", region="GB"), top=True),
+        news("https://feeds.bbci.co.uk/sport/rss.xml", "BBC Sport"),
         news("https://feeds.bbci.co.uk/sport/cricket/rss.xml", "BBC Sport"),
         news("https://www.espncricinfo.com/rss/content/story/feeds/0.xml", "ESPNcricinfo"),
-        news(_google(section="SPORTS")),
-        reddit("soccer"),
+        reddit("soccer", focus=True),
         reddit("cricket"),
-        mastodon("football"),
+        mastodon("football", focus=True),
+        mastodon("premierleague", focus=True),
         mastodon("cricket"),
     ],
     "Science": [
@@ -160,6 +180,81 @@ FEEDS: dict[str, list[dict]] = {
         mastodon("science"),
         bluesky("nature.com", "Nature"),
     ],
+}
+
+# Per-topic focus: the reader's favourite part of a category. Focus stories
+# get a ranking boost (the "f:<topic>" feature, which the phone keeps learning)
+# and a badge. Stories outside the focus are either kept as usual ("keep") or
+# only when popular ("popular_only": a curated top story, reported by several
+# outlets, or discussed on social media), at most `max_others` of them.
+FOOTBALL_RE = re.compile(
+    r"\b(football|soccer|premier league|champions league|europa (conference )?league|nations league|"
+    r"fifa|uefa|la ?liga|serie a|bundesliga|ligue 1|eredivisie|mls|fa cup|carabao cup|efl|"
+    r"ballon d'or|transfer (window|news)|world cup qualif\w*|striker|midfielder|goalkeeper|"
+    r"arsenal|chelsea|liverpool|manchester (united|city)|man (utd|united|city)|tottenham|"
+    r"newcastle united|aston villa|everton|barcelona|real madrid|atletico madrid|bayern munich|"
+    r"dortmund|psg|paris saint-germain|juventus|inter milan|ac milan|napoli|"
+    r"messi|ronaldo|mbapp[eé]|haaland|salah|harry kane|guardiola|tuchel|world cup|"
+    r"[0-5]-[0-5])\b",
+    re.I,
+)
+NOT_FOOTBALL_RE = re.compile(
+    r"\b(nfl|super bowl|quarterback|touchdown|college football|ncaa|fantasy football|nba|mlb|nhl|"
+    r"rugby|cricket|afl|gaelic|tennis|wimbledon|atp|wta|hockey|basketball|baseball)\b",
+    re.I,
+)
+AI_IT_RE = re.compile(
+    r"\b(artificial intelligence|machine learning|deep learning|generative|genai|llms?|"
+    r"large language models?|chatbots?|chatgpt|openai|anthropic|claude|gemini|copilot|deepmind|"
+    r"mistral|hugging ?face|nvidia|gpus?|agentic|neural|data cent(er|re)s?|cloud|azure|aws|"
+    r"software|developers?|programming|coding|open[- ]source|linux|windows|cyber\w*|"
+    r"hack(er|ers|ed|ing|s)?|ransomware|malware|phishing|data breach|breach|vulnerabilit(y|ies)|"
+    r"zero-days?|exploit\w*|flaws?|security|bugs?|patch(es|ed)?|outages?|servers?|databases?|saas|"
+    r"semiconductors?|chips?|"
+    r"quantum comput\w*|robot\w*|automation|it (sector|industry|services|jobs|systems))\b",
+    re.I,
+)
+# "AI" is matched case-sensitively so words like "aim" or "Kai" don't count.
+_AI_ACRONYM_RE = re.compile(r"\bA\.?I\b|\bAI(?=[-\u2019's])")
+
+
+# Article text mentions IT terms ("software", "cloud") in all sorts of
+# consumer stories, so only explicit AI terms count when matching the body.
+AI_STRONG_RE = re.compile(
+    r"\b(artificial intelligence|machine learning|generative|llms?|large language models?|chatgpt|"
+    r"openai|anthropic|deepmind|ai models?|ai agents?|chatbots?)\b",
+    re.I,
+)
+SHOPPING_RE = re.compile(r"\b(deals?|prime day|black friday|discount(ed)?|\d+% off|price drop|on sale|buying guide|best .+ to buy)\b", re.I)
+
+
+def _matches_ai_it(text: str) -> bool:
+    return bool(AI_IT_RE.search(text) or _AI_ACRONYM_RE.search(text))
+
+
+def _matches_football(text: str) -> bool:
+    return bool(FOOTBALL_RE.search(text)) and not NOT_FOOTBALL_RE.search(text)
+
+
+def _is_football(title: str, body: str, from_focus_feed: bool) -> bool:
+    text = f"{title} {body}"
+    if NOT_FOOTBALL_RE.search(text):
+        return False
+    return from_focus_feed or bool(FOOTBALL_RE.search(text))
+
+
+def _is_ai_it(title: str, body: str, from_focus_feed: bool) -> bool:
+    if SHOPPING_RE.search(title):
+        return False
+    return from_focus_feed or _matches_ai_it(title) or bool(AI_STRONG_RE.search(body) or _AI_ACRONYM_RE.search(body))
+
+
+# reserve: slots kept for non-focus stories (when there are enough of them).
+# max_others: cap on non-focus stories. "popular_only" drops non-focus stories
+# that are not popular before anything else happens.
+TOPIC_FOCUS: dict[str, dict] = {
+    "Sports": {"label": "Football", "classify": _is_football, "others": "popular_only", "reserve": 8, "max_others": 8},
+    "Technology": {"label": "AI & IT", "classify": _is_ai_it, "others": "keep", "reserve": 12, "max_others": None},
 }
 
 # Stories in these topics must actually be about the place. Local outlets and
@@ -195,6 +290,11 @@ TRUSTED_SOURCES: dict[str, float] = {
     "The Verge": 0.86,
     "Lanka Business Online": 0.86,
     "ScienceDaily": 0.85,
+    "MIT Technology Review": 0.9,
+    "Sky Sports": 0.88,
+    "TechCrunch": 0.87,
+    "The Register": 0.86,
+    "BleepingComputer": 0.86,
 }
 
 LOCAL_SOURCE_TOKENS = [
@@ -430,6 +530,8 @@ def fetch_feed(feed: dict) -> list[dict]:
         # zone) are treated as "just published".
         item["published_ts"] = min(ts, now) if ts else now
         item["kind"] = feed["kind"]
+        item["feed_focus"] = bool(feed.get("focus"))
+        item["feed_top"] = bool(feed.get("top"))
         item["title_tokens"] = set(content_tokens(item["title"]))
         item["lead_tokens"] = set(content_tokens(" ".join((item.get("text") or "").split()[:30])))
         items.append(item)
@@ -861,17 +963,50 @@ def _prerank(group: dict) -> tuple:
     social = sum(1 for i in group["items"] if i["kind"] in SOCIAL_KINDS)
     newest = max(i["published_ts"] for i in group["items"])
     age_hours = max(0.0, (time.time() - newest) / 3600)
-    return (len(news_sources) * 1.5 + math.log1p(social) - age_hours / 12, newest)
+    focus_bonus = 2.0 if group.get("focus") else 0.0
+    return (len(news_sources) * 1.5 + math.log1p(social) - age_hours / 12 + focus_bonus, newest)
+
+
+def group_is_focus(group: dict, focus: dict) -> bool:
+    """Whether a story is in the topic's focus, judged on its headlines, the
+    start of its reports, and whether it came from a focus-only feed."""
+    items = group["items"][:4]
+    titles = " ".join(i["title"] for i in items)
+    body = " ".join((i.get("text") or "")[:300] for i in items)
+    from_focus_feed = any(i.get("feed_focus") for i in group["items"])
+    return focus["classify"](titles, body, from_focus_feed)
+
+
+def group_is_popular(group: dict) -> bool:
+    """Curated as a top story, reported by several outlets, or discussed on
+    social media."""
+    if any(i.get("feed_top") for i in group["items"]):
+        return True
+    outlets = {i["source"] for i in group["items"] if i["kind"] == "news"}
+    social = sum(1 for i in group["items"] if i["kind"] in SOCIAL_KINDS)
+    return len(outlets) >= 2 or social >= 2
 
 
 def build_topic(topic: str, items: list[dict], now: float) -> list[dict]:
     cutoff = now - TOPIC_MAX_AGE_HOURS.get(topic, MAX_AGE_HOURS) * 3600
     fresh = [i for i in items if i["published_ts"] >= cutoff and _passes_topic_filter(i, topic)]
     groups = group_items(fresh)
+    focus = TOPIC_FOCUS.get(topic)
+    if focus:
+        for group in groups:
+            group["focus"] = group_is_focus(group, focus)
+        if focus["others"] == "popular_only":
+            groups = [g for g in groups if g["focus"] or group_is_popular(g)]
     groups.sort(key=_prerank, reverse=True)
     # Enrich a few more groups than we keep: social-only groups without text
     # may still drop out after enrichment.
-    candidates = groups[: MAX_STORIES_PER_TOPIC + 15]
+    if focus:
+        focus_groups = [g for g in groups if g["focus"]]
+        other_groups = [g for g in groups if not g["focus"]]
+        reserve = min(len(other_groups), focus["reserve"])
+        candidates = focus_groups[: MAX_STORIES_PER_TOPIC + 15 - reserve] + other_groups[: reserve + 5]
+    else:
+        candidates = groups[: MAX_STORIES_PER_TOPIC + 15]
     to_enrich = []
     for group in candidates:
         thin = [i for i in group["items"] if _is_thin(i) and i.get("article_url")]
@@ -885,9 +1020,25 @@ def build_topic(topic: str, items: list[dict], now: float) -> list[dict]:
             continue
         if story["features"]["is_social_only"] and not story["description"] and story["features"]["social_count"] < 2:
             continue
+        if focus:
+            story["focus"] = int(group["focus"])
+            story["focus_label"] = focus["label"] if group["focus"] else ""
         stories.append(story)
     model = ranking.load_defaults()
     stories.sort(key=lambda s: ranking.score_story(model, s, now), reverse=True)
+    if focus:
+        # Focus stories fill the topic, but `reserve` slots stay open for the
+        # best-ranked other stories (e.g. the most popular cricket news).
+        others = [s for s in stories if not s["focus"]]
+        if focus["max_others"] is not None:
+            others = others[: focus["max_others"]]
+        focused = [s for s in stories if s["focus"]]
+        reserved = others[: focus["reserve"]]
+        room = MAX_STORIES_PER_TOPIC - len(reserved)
+        chosen = focused[:room] + reserved
+        chosen += [s for s in others[len(reserved):]][: MAX_STORIES_PER_TOPIC - len(chosen)]
+        chosen_ids = {s["id"] for s in chosen}
+        stories = [s for s in stories if s["id"] in chosen_ids]
     return stories[:MAX_STORIES_PER_TOPIC]
 
 

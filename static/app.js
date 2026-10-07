@@ -284,6 +284,7 @@
 
     const meta = el("div", { className: "meta" }, [
       tab === FOR_YOU ? el("span", { className: "topic-chip", text: story.topic }) : null,
+      story.focus_label ? el("span", { className: "badge focus", text: story.focus_label }) : null,
       el("span", { className: "source", text: story.best_source || "" }),
       el("span", { text: timeAgo(story.published_ts) }),
       sourceCount > 1 ? el("span", { className: "badge", text: sourceCount + " sources" }) : null,

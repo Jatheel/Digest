@@ -1,24 +1,111 @@
 {
   "now": 1790000000,
   "stories": [
-    {"id": "a", "topic": "Sri Lanka", "title": "Parliament passes budget", "published_ts": 1789992800, "best_source": "Ada Derana",
-     "keywords": ["parliament", "passes", "budget", "parliament_passes", "passes_budget"],
-     "features": {"source_trust": 0.96, "source_count": 3, "social_count": 2, "local_source": 1, "local_mention": 1, "is_social_only": 0}},
-    {"id": "b", "topic": "Sports", "title": "Liverpool beat City", "published_ts": 1789996400, "best_source": "BBC Sport",
-     "keywords": ["liverpool", "beat", "city", "liverpool_beat", "beat_city"],
-     "features": {"source_trust": 0.92, "source_count": 1, "social_count": 0, "local_source": 0, "local_mention": 0, "is_social_only": 0}},
-    {"id": "c", "topic": "Technology", "title": "Café owners in São Paulo try new payment app", "published_ts": 1789900000, "best_source": "The Verge",
-     "keywords": ["café", "owners", "são", "paulo", "payment"],
-     "features": {"source_trust": 0.86, "source_count": 2, "social_count": 5, "local_source": 0, "local_mention": 0, "is_social_only": 0}},
-    {"id": "d", "topic": "World", "title": "Reddit thread on election", "published_ts": 1789999000, "best_source": "r/worldnews",
-     "keywords": [],
-     "features": {"source_trust": 0.4, "source_count": 0, "social_count": 3, "local_source": 0, "local_mention": 0, "is_social_only": 1}}
+    {
+      "id": "a",
+      "topic": "Sri Lanka",
+      "title": "Parliament passes budget",
+      "published_ts": 1789992800,
+      "best_source": "Ada Derana",
+      "keywords": [
+        "parliament",
+        "passes",
+        "budget",
+        "parliament_passes",
+        "passes_budget"
+      ],
+      "features": {
+        "source_trust": 0.96,
+        "source_count": 3,
+        "social_count": 2,
+        "local_source": 1,
+        "local_mention": 1,
+        "is_social_only": 0
+      }
+    },
+    {
+      "id": "b",
+      "topic": "Sports",
+      "title": "Liverpool beat City",
+      "published_ts": 1789996400,
+      "best_source": "BBC Sport",
+      "keywords": [
+        "liverpool",
+        "beat",
+        "city",
+        "liverpool_beat",
+        "beat_city"
+      ],
+      "features": {
+        "source_trust": 0.92,
+        "source_count": 1,
+        "social_count": 0,
+        "local_source": 0,
+        "local_mention": 0,
+        "is_social_only": 0
+      },
+      "focus": 1
+    },
+    {
+      "id": "c",
+      "topic": "Technology",
+      "title": "Café owners in São Paulo try new payment app",
+      "published_ts": 1789900000,
+      "best_source": "The Verge",
+      "keywords": [
+        "café",
+        "owners",
+        "são",
+        "paulo",
+        "payment"
+      ],
+      "features": {
+        "source_trust": 0.86,
+        "source_count": 2,
+        "social_count": 5,
+        "local_source": 0,
+        "local_mention": 0,
+        "is_social_only": 0
+      },
+      "focus": 1
+    },
+    {
+      "id": "d",
+      "topic": "World",
+      "title": "Reddit thread on election",
+      "published_ts": 1789999000,
+      "best_source": "r/worldnews",
+      "keywords": [],
+      "features": {
+        "source_trust": 0.4,
+        "source_count": 0,
+        "social_count": 3,
+        "local_source": 0,
+        "local_mention": 0,
+        "is_social_only": 1
+      }
+    }
   ],
   "events": [
-    {"story": 0, "reaction": "interested"},
-    {"story": 1, "reaction": "not_interested"},
-    {"story": 2, "reaction": "moderate"},
-    {"story": 2, "reaction": "opened"},
-    {"story": 3, "reaction": "expanded"}
+    {
+      "story": 0,
+      "reaction": "interested"
+    },
+    {
+      "story": 1,
+      "reaction": "not_interested"
+    },
+    {
+      "story": 2,
+      "reaction": "moderate"
+    },
+    {
+      "story": 2,
+      "reaction": "opened"
+    },
+    {
+      "story": 3,
+      "reaction": "expanded"
+    }
   ]
 }
