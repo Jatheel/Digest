@@ -14,3 +14,7 @@ site/
 .digest_cache.json
 .summary_cache.json
 node_modules/
+
+# Android signing keys (never commit)
+*.jks
+*.keystore
