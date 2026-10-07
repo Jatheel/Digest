@@ -1,0 +1,8 @@
+{
+  "appId": "com.jatheel.digest",
+  "appName": "Digest",
+  "webDir": "static",
+  "android": {
+    "allowMixedContent": false
+  }
+}

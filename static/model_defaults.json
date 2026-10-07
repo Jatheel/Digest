@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "hash_buckets": 1024,
+  "recency_tau_hours": 18,
+  "dense_features": ["bias", "recency", "log_sources", "log_social", "trust", "local_source", "local_mention", "social_only"],
+  "dense_weights": [-4.0, 2.4, 1.1, 0.35, 1.6, 0.9, 0.7, -0.8],
+  "sparse_weights": {
+    "t:Sri Lanka": 0.6,
+    "t:Mannar": 0.45,
+    "t:World": -0.05,
+    "t:Technology": -0.25,
+    "t:Business": -0.2,
+    "t:Sports": -0.1,
+    "t:Science": -0.3
+  },
+  "learning_rate": 0.3,
+  "dense_learning_rate_scale": 0.1,
+  "l2": 0.01,
+  "epochs": 5,
+  "max_events": 500
+}

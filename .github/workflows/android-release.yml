@@ -1,0 +1,77 @@
+# Builds the Android app (APK) and attaches it to a GitHub Release.
+# Push a tag like v1.0.0 to publish a release, or run it by hand from the
+# Actions tab to get the APK as a downloadable build artifact.
+name: Android release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - run: npm ci
+
+      - name: Test the on-device model
+        run: npm test
+
+      - run: npx cap sync android
+
+      - name: Build APK
+        env:
+          # Optional but recommended: a fixed signing key lets new versions
+          # install over old ones. See README "Signing the Android app".
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          VERSION_NAME: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.{0}', github.run_number) }}
+        run: |
+          cd android
+          chmod +x gradlew
+          VERSION_ARGS="-PversionCode=${{ github.run_number }} -PversionName=${VERSION_NAME#v}"
+          if [ -n "$ANDROID_KEYSTORE_B64" ]; then
+            echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            ./gradlew assembleRelease $VERSION_ARGS \
+              -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.jks" \
+              -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+            cp app/build/outputs/apk/release/app-release.apk "../Digest-${VERSION_NAME}.apk"
+          else
+            echo "::warning::No signing key secrets set; building a debug-signed APK. Updates will need an uninstall first."
+            ./gradlew assembleDebug $VERSION_ARGS
+            cp app/build/outputs/apk/debug/app-debug.apk "../Digest-${VERSION_NAME}.apk"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Digest-apk
+          path: Digest-*.apk
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Digest-*.apk
+          generate_release_notes: true
+          body: |
+            **Install on Android:** download `Digest-${{ github.ref_name }}.apk` below on your phone, open it, and allow "Install unknown apps" for your browser when asked.

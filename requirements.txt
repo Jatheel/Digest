@@ -1,3 +1,5 @@
 fastapi
 uvicorn[standard]
 feedparser
+# Optional: only used when ANTHROPIC_API_KEY is set (AI summaries)
+anthropic

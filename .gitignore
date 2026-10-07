@@ -8,3 +8,9 @@ venv/
 .vscode/
 *.log
 user_profile.json
+
+# Digest build output and caches
+site/
+.digest_cache.json
+.summary_cache.json
+node_modules/

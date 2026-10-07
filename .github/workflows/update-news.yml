@@ -1,0 +1,67 @@
+# Collects the latest news every 30 minutes and publishes it, together with
+# the web app, to GitHub Pages: https://jatheel.github.io/Digest/
+# The Android app reads news.json from there.
+name: Update news
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "static/**"
+      - "*.py"
+      - "requirements.txt"
+      - ".github/workflows/update-news.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m unittest test_news_ranking test_pipeline
+
+      - name: Build digest
+        env:
+          # Optional: set this repository secret to get AI-written summaries
+          # for stories covered by several outlets.
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: >
+          python build_feed.py --out site
+          --summary-cache-url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/summary_cache.json"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
