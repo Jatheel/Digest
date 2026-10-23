@@ -27,6 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from typing import Iterable
+import unicodedata
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -93,8 +94,11 @@ FEEDS: dict[str, list[dict]] = {
     "Sri Lanka": [
         news("https://www.adaderana.lk/rss.php", "Ada Derana"),
         news("https://www.dailymirror.lk/rss/breaking_news/108", "Daily Mirror"),
+        news("https://www.newswire.lk/feed/", "NewsWire"),
         news("https://economynext.com/feed/", "EconomyNext"),
         news("https://srilankamirror.com/feed/", "Sri Lanka Mirror"),
+        news(_google("site:hirunews.lk+Sri+Lanka", region="LK"), "Hiru News"),
+        news(_google("site:newsfirst.lk+Sri+Lanka", region="LK"), "Newsfirst"),
         news(_google("site%3Aadaderana.lk+OR+site%3Adailymirror.lk+OR+site%3Anewsfirst.lk+Sri+Lanka", region="LK")),
         news(_google("site%3Acolombotelegraph.com+OR+site%3Aisland.lk+Sri+Lanka", region="LK")),
         news(_google(region="LK")),
@@ -102,6 +106,13 @@ FEEDS: dict[str, list[dict]] = {
         mastodon("srilanka"),
     ],
     "Mannar": [
+        news("https://www.newmannar.lk/feeds/posts/default?alt=rss", "NewMannar", focus=True),
+        news("https://www.newswire.lk/tag/mannar/feed/", "NewsWire", focus=True),
+        news(_google("site:newsfirst.lk+Mannar", region="LK"), "Newsfirst", focus=True),
+        news(_google("site:dailymirror.lk+Mannar", region="LK"), "Daily Mirror", focus=True),
+        news(_google("site:adaderana.lk+Mannar", region="LK"), "Ada Derana", focus=True),
+        news(_google("site:yarlsrimedia.com+Mannar", region="LK"), "YarlSri Media", focus=True),
+        news(_google("site:newmannar.lk", region="LK"), "NewMannar", focus=True),
         news(_google("Mannar+Sri+Lanka", region="LK")),
         news(_google("Mannar+district", region="LK")),
     ],
@@ -260,17 +271,31 @@ TOPIC_FOCUS: dict[str, dict] = {
 # Stories in these topics must actually be about the place. Local outlets and
 # place-tagged social feeds pass automatically; everything else needs a mention.
 TOPIC_REQUIRED_TERMS: dict[str, list[str]] = {
-    "Sri Lanka": ["sri lanka", "lanka", "colombo", "sri lankan"],
-    "Mannar": ["mannar"],
+    "Sri Lanka": [
+        "sri lanka", "lanka", "colombo", "sri lankan",
+        "இலங்கை", "கொழும்பு", "ஸ்ரீலங்கா", "இலங்கையர்",
+    ],
+    "Mannar": [
+        "mannar", "talaimannar", "pesalai", "murunkan", "nanaddan", "musali",
+        "madhu", "vankalai", "vidattaltivu", "erukkalampiddy", "erukkalampiti",
+        "silavatturai", "adampan", "thiruketheeswaram",
+        "மன்னார்", "தலைமன்னார்", "பேசாலை", "முருங்கன்", "நானாட்டான்",
+        "முசலி", "மடு", "வங்காலை", "விடத்தல்தீவு", "எருக்கலம்பிட்டு",
+        "சிலாவத்துறை", "அடம்பன்", "திருக்கேதீஸ்வரம்",
+    ],
 }
 
 TRUSTED_SOURCES: dict[str, float] = {
     "Newsfirst": 0.97,
+    "NewsWire": 0.95,
     "Reuters": 0.97,
     "Ada Derana": 0.96,
     "AP": 0.96,
     "Associated Press": 0.96,
     "Daily Mirror": 0.94,
+    "Hiru News": 0.93,
+    "NewMannar": 0.91,
+    "YarlSri Media": 0.89,
     "BBC": 0.92,
     "The Sunday Times": 0.92,
     "Bloomberg": 0.92,
@@ -299,13 +324,23 @@ TRUSTED_SOURCES: dict[str, float] = {
 
 LOCAL_SOURCE_TOKENS = [
     "daily mirror", "ada derana", "newsfirst", "sri lanka", "sunday times",
-    "the island", "colombo", "lankapuvath", "hirunews", "economynext",
-    "lanka business", "r/srilanka", "#srilanka", "onlanka",
+    "the island", "colombo", "lankapuvath", "hirunews", "hiru news", "hiru", "economynext",
+    "lanka business", "r/srilanka", "#srilanka", "onlanka", "newswire",
+    "newmannar", "new mannar", "yarlsri", "yarlsrimedia",
 ]
 
 SOURCE_ALIASES = {
     "news first": "Newsfirst",
     "newsfirst": "Newsfirst",
+    "newswire": "NewsWire",
+    "hiru news": "Hiru News",
+    "hirunews": "Hiru News",
+    "hiru": "Hiru News",
+    "new mannar": "NewMannar",
+    "newmannar": "NewMannar",
+    "yarlsri media": "YarlSri Media",
+    "yarlsri": "YarlSri Media",
+    "yarlsrimedia": "YarlSri Media",
     "bbc news": "BBC",
     "bbc sport": "BBC Sport",
     "associated press": "AP",
@@ -388,7 +423,10 @@ def normalize_text(value: str) -> str:
     if not value:
         return ""
     value = html.unescape(value)
-    value = re.sub(r"[^a-zA-Z0-9\s]", " ", value.lower())
+    value = "".join(
+        c.lower() if (unicodedata.category(c)[0] in ("L", "M", "N") or c.isspace()) else " "
+        for c in value
+    )
     return re.sub(r"\s+", " ", value).strip()
 
 
@@ -559,6 +597,8 @@ def _parse_news_entry(entry, feed: dict, feed_title: str) -> dict | None:
     else:
         source = canonical_source(feed.get("name") or feed_title)
     title = clean_text(entry.get("title", ""), 300)
+    if re.match(r"^(home|about[\s\-_]*us|contact[\s\-_]*us|privacy[\s\-_]*policy)($|\s*[-–|])", title, re.IGNORECASE):
+        return None
     if _is_google_news(link):
         # Google News titles end with " - Publisher" and their summaries are
         # just a list of links, so keep neither.
@@ -754,9 +794,9 @@ def _passes_topic_filter(item: dict, topic: str) -> bool:
     if not terms:
         return True
     feed_name = str(item.get("source") or "")
-    if item["kind"] == "news" and is_local_source(feed_name) and topic == "Sri Lanka":
+    if item["kind"] == "news" and is_local_source(feed_name) and topic in ("Sri Lanka", "Mannar"):
         return True
-    if item["kind"] in SOCIAL_KINDS and item.get("feed_local"):
+    if item.get("feed_local") or item.get("feed_focus"):
         return True
     haystack = f"{item.get('title', '')} {item.get('text', '')}".lower()
     return any(term in haystack for term in terms)
@@ -926,7 +966,7 @@ def build_story(group: dict, topic: str) -> dict | None:
             "source_count": len(distinct_news_sources),
             "social_count": len(social),
             "local_source": int(any(is_local_source(s) for s in distinct_news_sources)),
-            "local_mention": int(any(t in haystack for t in TOPIC_REQUIRED_TERMS["Sri Lanka"])),
+            "local_mention": int(any(t in haystack for t in TOPIC_REQUIRED_TERMS.get(topic, TOPIC_REQUIRED_TERMS["Sri Lanka"]))),
             "is_social_only": int(social_only),
         },
         "keywords": _story_keywords(title, description),
@@ -1053,9 +1093,11 @@ def build_digest(topics: Iterable[str] | None = None, summary_cache: dict | None
     by_topic: dict[str, list[dict]] = {topic: [] for topic in topic_names}
     feed_stats = []
     for (topic, feed), items in zip(jobs, results):
-        local_feed = topic in TOPIC_REQUIRED_TERMS and feed["kind"] in SOCIAL_KINDS
+        local_feed = (topic in TOPIC_REQUIRED_TERMS and feed["kind"] in SOCIAL_KINDS) or bool(feed.get("focus"))
         for item in items:
             item["feed_local"] = local_feed
+            if feed.get("focus"):
+                item["feed_focus"] = True
         by_topic[topic].extend(items)
         feed_stats.append({"topic": topic, "kind": feed["kind"], "url": feed["url"], "items": len(items)})
 

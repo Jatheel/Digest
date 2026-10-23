@@ -305,6 +305,25 @@ class DigestTests(unittest.TestCase):
         self.assertIn("2027 budget", s["description"])
         self.assertEqual({f["items"] for f in digest["feeds"]}, {2, 0})
 
+    def test_mannar_and_tamil_topic_filtering(self):
+        newmannar_item = item("Local development project launched in district", "NewMannar")
+        self.assertTrue(p._passes_topic_filter(newmannar_item, "Mannar"))
+
+        tamil_mannar_item = item("மன்னார் மாவட்டத்தில் புதிய திட்டம் ஆரம்பம்", "SomeSource")
+        self.assertTrue(p._passes_topic_filter(tamil_mannar_item, "Mannar"))
+
+        tamil_sl_item = item("இலங்கை பொருளாதார வளர்ச்சி", "SomeSource")
+        self.assertTrue(p._passes_topic_filter(tamil_sl_item, "Sri Lanka"))
+
+        focus_feed_item = item("Bridge opened in northern province", "NewsWire")
+        focus_feed_item["feed_focus"] = True
+        self.assertTrue(p._passes_topic_filter(focus_feed_item, "Mannar"))
+
+    def test_navigation_titles_are_filtered(self):
+        for title in ("Home", "About Us", "Home | YarlSri Media", "Contact-Us"):
+            entry = feedparser.FeedParserDict({"title": title, "link": "https://example.com", "summary": ""})
+            self.assertIsNone(p._parse_news_entry(entry, p.news("https://example.com"), "Test"))
+
 
 class ServerTests(unittest.TestCase):
     def test_details_endpoint_reads_only_the_cached_digest(self):
