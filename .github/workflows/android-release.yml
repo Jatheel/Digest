@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
@@ -107,14 +107,14 @@ jobs:
           fi
           cp "$apk" "../Digest-${VERSION_NAME}.apk"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: Digest-apk
           path: Digest-*.apk
 
       - name: Publish release
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: Digest-*.apk
           generate_release_notes: true
