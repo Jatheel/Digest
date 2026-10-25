@@ -121,6 +121,8 @@ FEEDS: dict[str, list[dict]] = {
         news("https://www.aljazeera.com/xml/rss/all.xml", "Al Jazeera"),
         news("https://www.theguardian.com/world/rss", "The Guardian"),
         news("https://www.npr.org/rss/rss.php?id=1001", "NPR"),
+        news(_google("site:reuters.com/world+OR+site:reuters.com", region="US"), "Reuters"),
+        news(_google("site:apnews.com/world-news+OR+site:apnews.com", region="US"), "AP"),
         news(_google(section="WORLD")),
         reddit("worldnews"),
         mastodon("worldnews"),
@@ -140,6 +142,7 @@ FEEDS: dict[str, list[dict]] = {
         news("https://www.theregister.com/headlines.atom", "The Register"),
         news("https://feeds.arstechnica.com/arstechnica/technology-lab", "Ars Technica"),
         news("https://www.bleepingcomputer.com/feed/", "BleepingComputer"),
+        news("https://www.wired.com/feed/rss", "WIRED"),
         news("https://feeds.bbci.co.uk/news/technology/rss.xml", "BBC"),
         news("https://www.theguardian.com/uk/technology/rss", "The Guardian"),
         news("https://feeds.arstechnica.com/arstechnica/index", "Ars Technica"),
@@ -153,9 +156,13 @@ FEEDS: dict[str, list[dict]] = {
         bluesky("arstechnica.com", "Ars Technica"),
     ],
     "Business": [
+        news("https://www.cnbc.com/id/100003114/device/rss/rss.html", "CNBC"),
+        news(_google("site:reuters.com/business+OR+site:reuters.com/markets"), "Reuters"),
+        news(_google("site:bloomberg.com/news"), "Bloomberg"),
+        news(_google("site:ft.com"), "Financial Times"),
+        news("https://feeds.a.dj.com/rss/WSJcomUSBusiness.xml", "The Wall Street Journal"),
         news("https://feeds.bbci.co.uk/news/business/rss.xml", "BBC"),
         news("https://www.theguardian.com/uk/business/rss", "The Guardian"),
-        news("https://www.cnbc.com/id/100003114/device/rss/rss.html", "CNBC"),
         news("https://www.dailymirror.lk/rss/business/215", "Daily Mirror"),
         news("https://www.lankabusinessonline.com/feed/", "Lanka Business Online"),
         news(_google(section="BUSINESS")),
@@ -171,11 +178,14 @@ FEEDS: dict[str, list[dict]] = {
         news("https://feeds.bbci.co.uk/sport/football/rss.xml", "BBC Sport", focus=True),
         news("https://www.theguardian.com/football/rss", "The Guardian", focus=True),
         news("https://www.skysports.com/rss/11095", "Sky Sports", focus=True),
+        news("https://www.skysports.com/rss/12040", "Sky Sports", focus=True),
         news(_google("football", region="GB"), focus=True),
         news(_google(section="SPORTS", region="GB"), top=True),
+        news(_google("site:espn.com"), "ESPN"),
         news("https://feeds.bbci.co.uk/sport/rss.xml", "BBC Sport"),
         news("https://feeds.bbci.co.uk/sport/cricket/rss.xml", "BBC Sport"),
         news("https://www.espncricinfo.com/rss/content/story/feeds/0.xml", "ESPNcricinfo"),
+        news(_google("site:sportingnews.com"), "The Sporting News"),
         reddit("soccer", focus=True),
         reddit("cricket"),
         mastodon("football", focus=True),
@@ -186,6 +196,10 @@ FEEDS: dict[str, list[dict]] = {
         news("https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", "BBC"),
         news("https://www.theguardian.com/science/rss", "The Guardian"),
         news("https://www.sciencedaily.com/rss/top/science.xml", "ScienceDaily"),
+        news("https://www.newscientist.com/feed/home/", "New Scientist"),
+        news("https://www.sciencenews.org/feed", "Science News"),
+        news(_google("site:scientificamerican.com"), "Scientific American"),
+        news(_google("site:science.org"), "Science"),
         news(_google(section="SCIENCE")),
         reddit("science"),
         mastodon("science"),
@@ -289,6 +303,9 @@ TRUSTED_SOURCES: dict[str, float] = {
     "Newsfirst": 0.97,
     "NewsWire": 0.95,
     "Reuters": 0.97,
+    "The Wall Street Journal": 0.95,
+    "Financial Times": 0.94,
+    "Science": 0.94,
     "Ada Derana": 0.96,
     "AP": 0.96,
     "Associated Press": 0.96,
@@ -300,10 +317,14 @@ TRUSTED_SOURCES: dict[str, float] = {
     "The Sunday Times": 0.92,
     "Bloomberg": 0.92,
     "Nature": 0.92,
+    "Scientific American": 0.92,
+    "New Scientist": 0.91,
+    "Science News": 0.90,
     "The Island": 0.9,
     "Al Jazeera": 0.9,
     "The New York Times": 0.9,
     "EconomyNext": 0.9,
+    "ESPN": 0.91,
     "ESPNcricinfo": 0.9,
     "The Guardian": 0.89,
     "Ars Technica": 0.89,
@@ -312,7 +333,9 @@ TRUSTED_SOURCES: dict[str, float] = {
     "DW": 0.88,
     "CNBC": 0.87,
     "CNN": 0.87,
+    "WIRED": 0.90,
     "The Verge": 0.86,
+    "The Sporting News": 0.88,
     "Lanka Business Online": 0.86,
     "ScienceDaily": 0.85,
     "MIT Technology Review": 0.9,
@@ -341,6 +364,18 @@ SOURCE_ALIASES = {
     "yarlsri media": "YarlSri Media",
     "yarlsri": "YarlSri Media",
     "yarlsrimedia": "YarlSri Media",
+    "wsj": "The Wall Street Journal",
+    "the wall street journal": "The Wall Street Journal",
+    "wall street journal": "The Wall Street Journal",
+    "ft": "Financial Times",
+    "financial times": "Financial Times",
+    "wired": "WIRED",
+    "science news": "Science News",
+    "new scientist": "New Scientist",
+    "scientific american": "Scientific American",
+    "sporting news": "The Sporting News",
+    "the sporting news": "The Sporting News",
+    "espn": "ESPN",
     "bbc news": "BBC",
     "bbc sport": "BBC Sport",
     "associated press": "AP",
@@ -589,6 +624,62 @@ def _entry_time(entry) -> float | None:
 # ---------------------------------------------------------------------------
 
 
+def _is_valid_image_url(url: str | None) -> bool:
+    if not url or not isinstance(url, str):
+        return False
+    url = url.strip()
+    if not (url.startswith("http://") or url.startswith("https://")):
+        return False
+    lowered = url.lower()
+    blocked = (
+        "1x1", "pixel", "spacer", "feedburner", "statcounter", "twemoji",
+        "avatar", "favicon", "site-logo", "icon-", "blank.gif", "dot.gif",
+    )
+    if any(b in lowered for b in blocked):
+        return False
+    return True
+
+
+def _extract_entry_image(entry) -> str | None:
+    # 1. media_thumbnail
+    for m in entry.get("media_thumbnail", []):
+        url = m.get("url")
+        if _is_valid_image_url(url):
+            return url
+    # 2. media_content
+    for m in entry.get("media_content", []):
+        url = m.get("url")
+        if _is_valid_image_url(url):
+            if "image" in m.get("type", "") or m.get("medium") == "image" or any(url.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")):
+                return url
+    # 3. enclosures and links
+    try:
+        enclosures = entry.get("enclosures", []) or []
+    except Exception:
+        enclosures = []
+    for enc in enclosures:
+        url = enc.get("href") or enc.get("url")
+        if _is_valid_image_url(url) and ("image" in enc.get("type", "") or any(url.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp"))):
+            return url
+    try:
+        links = entry.get("links", []) or []
+    except Exception:
+        links = []
+    for link in links:
+        if link.get("rel") == "enclosure" or "image" in link.get("type", ""):
+            url = link.get("href") or link.get("url")
+            if _is_valid_image_url(url):
+                return url
+    # 4. inline <img> in summary or content
+    content_list = entry.get("content", [])
+    content_val = content_list[0].get("value", "") if isinstance(content_list, list) and content_list else ""
+    raw = (entry.get("summary") or "") + " " + content_val
+    match = re.search(r'<img[^>]+src=["\'](https?://[^"\']+)["\']', raw, re.I)
+    if match and _is_valid_image_url(match.group(1)):
+        return match.group(1)
+    return None
+
+
 def _parse_news_entry(entry, feed: dict, feed_title: str) -> dict | None:
     link = entry.get("link", "")
     source_info = entry.get("source")
@@ -608,7 +699,8 @@ def _parse_news_entry(entry, feed: dict, feed_title: str) -> dict | None:
         text = clean_text(entry.get("summary", entry.get("description", "")), paragraphs=True)
     if normalize_text(text) == normalize_text(title):
         text = ""
-    return {"title": title, "text": text, "link": link, "article_url": link, "source": source}
+    image_url = _extract_entry_image(entry)
+    return {"title": title, "text": text, "link": link, "article_url": link, "source": source, "image_url": image_url}
 
 
 def _first_external_link(raw_html: str) -> str:
@@ -630,6 +722,9 @@ def _parse_reddit_entry(entry, feed: dict, feed_title: str) -> dict | None:
         external = ""
     body = re.search(r'<div class="md">(.*?)</div>', raw, re.S)
     text = clean_text(body.group(1), paragraphs=True) if body else ""
+    image_url = _extract_entry_image(entry)
+    if not image_url and _is_valid_image_url(entry.get("thumbnail")):
+        image_url = entry.get("thumbnail")
     return {
         "title": title,
         "text": text,
@@ -637,6 +732,7 @@ def _parse_reddit_entry(entry, feed: dict, feed_title: str) -> dict | None:
         "article_url": external,
         "source": feed["name"],
         "platform": "reddit",
+        "image_url": image_url,
     }
 
 
@@ -652,6 +748,7 @@ def _parse_mastodon_entry(entry, feed: dict, feed_title: str) -> dict | None:
         return None
     link = entry.get("link", "")
     handle = re.search(r"/(@[^/]+)/", link)
+    image_url = _extract_entry_image(entry)
     return {
         "title": _shorten(title, 220),
         "text": clean_text(" ".join(_URL_RE.sub("", p) for p in paragraphs[1:])),
@@ -659,6 +756,7 @@ def _parse_mastodon_entry(entry, feed: dict, feed_title: str) -> dict | None:
         "article_url": _first_external_link(raw),
         "source": handle.group(1) if handle else "Mastodon",
         "platform": "mastodon",
+        "image_url": image_url,
     }
 
 
@@ -673,6 +771,8 @@ def _parse_youtube_entry(entry, feed: dict, feed_title: str) -> dict | None:
         if re.search(r"subscribe|https?://|follow us|#\w+|download the", line, re.I):
             break
         keep.append(line)
+    video_id = entry.get("yt_videoid")
+    image_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg" if video_id else _extract_entry_image(entry)
     return {
         "title": title,
         "text": clean_text(" ".join(keep)),
@@ -680,6 +780,7 @@ def _parse_youtube_entry(entry, feed: dict, feed_title: str) -> dict | None:
         "article_url": "",
         "source": feed["name"],
         "platform": "youtube",
+        "image_url": image_url,
     }
 
 
@@ -691,6 +792,7 @@ def _parse_bluesky_entry(entry, feed: dict, feed_title: str) -> dict | None:
     text = re.sub(r"\s+", " ", text).strip()
     if len(text) < 30:
         return None
+    image_url = _extract_entry_image(entry)
     return {
         "title": _shorten(text.split("\n")[0], 220),
         "text": "",
@@ -698,6 +800,7 @@ def _parse_bluesky_entry(entry, feed: dict, feed_title: str) -> dict | None:
         "article_url": urls[0] if urls else "",
         "source": feed["name"],
         "platform": "bluesky",
+        "image_url": image_url,
     }
 
 
@@ -721,6 +824,7 @@ class _ArticleTextParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.description = ""
+        self.image = ""
         self.paragraphs: list[str] = []
         self._current: list[str] | None = None
         self._skip_depth = 0
@@ -729,11 +833,15 @@ class _ArticleTextParser(HTMLParser):
         tag = tag.lower()
         if tag in {"script", "style", "noscript", "nav", "footer", "aside"}:
             self._skip_depth += 1
-        elif tag == "meta" and not self.description:
+        elif tag == "meta":
             attributes = {key.lower(): value or "" for key, value in attrs}
             key = attributes.get("name", "").lower() or attributes.get("property", "").lower()
-            if key in {"description", "og:description", "twitter:description"}:
+            if not self.description and key in {"description", "og:description", "twitter:description"}:
                 self.description = attributes.get("content", "")
+            if not self.image and key in {"og:image", "twitter:image", "og:image:url"}:
+                candidate = attributes.get("content", "")
+                if _is_valid_image_url(candidate):
+                    self.image = candidate
         elif tag == "p" and self._skip_depth == 0 and len(self.paragraphs) < self.MAX_PARAGRAPHS:
             self._current = []
 
@@ -753,14 +861,14 @@ class _ArticleTextParser(HTMLParser):
             self._current.append(data)
 
 
-def fetch_article_text(url: str) -> str:
-    """Meta description plus the first paragraphs of an article page."""
+def fetch_article_data(url: str) -> tuple[str, str]:
+    """Meta description plus opening paragraphs, and og:image."""
     if not url or _is_google_news(url) or _is_social_url(url):
-        return ""
+        return ("", "")
     try:
         content = http_get(url, ARTICLE_TIMEOUT_SECONDS, max_bytes=600_000).decode("utf-8", errors="ignore")
     except (OSError, URLError, UnicodeError, ValueError, zlib.error):
-        return ""
+        return ("", "")
     parser = _ArticleTextParser()
     try:
         parser.feed(content)
@@ -775,7 +883,12 @@ def fetch_article_text(url: str) -> str:
     for paragraph in parser.paragraphs:
         if not any(token_overlap(paragraph, saved) >= 0.6 for saved in parts):
             parts.append(paragraph)
-    return clean_text(" ".join(parts))
+    return (clean_text(" ".join(parts)), parser.image)
+
+
+def fetch_article_text(url: str) -> str:
+    """Meta description plus the first paragraphs of an article page."""
+    return fetch_article_data(url)[0]
 
 
 def _is_thin(item: dict) -> bool:
@@ -949,10 +1062,20 @@ def build_story(group: dict, topic: str) -> dict | None:
     ]
     distinct_news_sources = {s["name"] for s in sources}
     haystack = f"{title} {description}".lower()
+
+    # Find the best image for this story: lead article image or any cluster item image
+    image_url = best.get("image_url")
+    if not image_url:
+        for i in group["items"]:
+            if i.get("image_url"):
+                image_url = i["image_url"]
+                break
+
     story = {
         "id": stable_story_id(group["items"]),
         "topic": topic,
         "title": title,
+        "image_url": image_url,
         "description": description,
         "full_summary": full_summary,
         "published": _iso(newest),
@@ -983,19 +1106,21 @@ def build_story(group: dict, topic: str) -> dict | None:
 
 
 def _enrich_items(items: list[dict]) -> None:
-    """Fetch article text for thin items, in parallel."""
+    """Fetch article text and image for thin items, in parallel."""
     targets = []
     for item in items:
         url = item.get("article_url") or ""
-        if url and _is_thin(item) and not item.get("_enriched"):
+        if url and not item.get("_enriched") and (_is_thin(item) or not item.get("image_url")):
             item["_enriched"] = True
             targets.append(item)
     if not targets:
         return
     with ThreadPoolExecutor(FETCH_WORKERS) as pool:
-        for item, text in zip(targets, pool.map(lambda i: fetch_article_text(i["article_url"]), targets)):
+        for item, (text, img) in zip(targets, pool.map(lambda i: fetch_article_data(i["article_url"]), targets)):
             if len(text) > len(item.get("text") or ""):
                 item["text"] = text
+            if not item.get("image_url") and img:
+                item["image_url"] = img
 
 
 def _prerank(group: dict) -> tuple:

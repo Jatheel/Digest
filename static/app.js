@@ -294,6 +294,27 @@
     const title = el("h2", {}, story.best_link
       ? externalLink(story.best_link, {}, story.title, openStory)
       : story.title);
+
+    let media = null;
+    if (story.image_url) {
+      const img = el("img", {
+        src: story.image_url,
+        alt: story.title,
+        loading: "lazy",
+        decoding: "async",
+      });
+      img.onerror = () => {
+        if (media && media.parentNode) media.remove();
+      };
+      if (story.best_link) {
+        media = el("div", { className: "card-media" }, [
+          externalLink(story.best_link, { className: "card-media-link" }, img, openStory)
+        ]);
+      } else {
+        media = el("div", { className: "card-media" }, [img]);
+      }
+    }
+
     const description = story.description ? el("p", { className: "description", text: story.description }) : null;
 
     const details = el("div", { className: "details", hidden: true });
@@ -326,6 +347,7 @@
     });
 
     card.append(meta, title);
+    if (media) card.append(media);
     if (description) card.append(description);
     // Some feeds (e.g. Google News) give only a headline; then there is
     // nothing to expand, so offer the article itself.

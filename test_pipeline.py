@@ -324,6 +324,41 @@ class DigestTests(unittest.TestCase):
             entry = feedparser.FeedParserDict({"title": title, "link": "https://example.com", "summary": ""})
             self.assertIsNone(p._parse_news_entry(entry, p.news("https://example.com"), "Test"))
 
+    def test_image_extraction_from_various_sources(self):
+        # 1. media_thumbnail
+        e1 = feedparser.FeedParserDict({"title": "T1", "link": "https://example.com/1",
+                                       "media_thumbnail": [{"url": "https://img.example.com/thumb.jpg"}]})
+        self.assertEqual(p._extract_entry_image(e1), "https://img.example.com/thumb.jpg")
+
+        # 2. media_content
+        e2 = feedparser.FeedParserDict({"title": "T2", "link": "https://example.com/2",
+                                       "media_content": [{"url": "https://img.example.com/content.webp", "type": "image/webp"}]})
+        self.assertEqual(p._extract_entry_image(e2), "https://img.example.com/content.webp")
+
+        # 3. enclosure
+        e3 = feedparser.FeedParserDict({"title": "T3", "link": "https://example.com/3",
+                                       "links": [{"href": "https://img.example.com/enclosure.png", "type": "image/png", "rel": "enclosure"}]})
+        self.assertEqual(p._extract_entry_image(e3), "https://img.example.com/enclosure.png")
+
+        # 4. inline <img>
+        e4 = feedparser.FeedParserDict({"title": "T4", "link": "https://example.com/4",
+                                       "summary": '<p>Lead text <img src="https://img.example.com/inline.jpg" /> more text</p>'})
+        self.assertEqual(p._extract_entry_image(e4), "https://img.example.com/inline.jpg")
+
+        # 5. Tracking pixels are rejected
+        e5 = feedparser.FeedParserDict({"title": "T5", "link": "https://example.com/5",
+                                       "summary": '<img src="https://feeds.feedburner.com/~r/test/~4/1x1.gif" />'})
+        self.assertIsNone(p._extract_entry_image(e5))
+
+    def test_story_contains_image_url(self):
+        it = item("Rover discovers water on Mars", "BBC",
+                  text="Scientists confirmed active water deposits.",
+                  link="https://example.com/mars")
+        it["image_url"] = "https://img.example.com/mars.jpg"
+        group = {"items": [it]}
+        story = p.build_story(group, "Science")
+        self.assertEqual(story["image_url"], "https://img.example.com/mars.jpg")
+
 
 class ServerTests(unittest.TestCase):
     def test_details_endpoint_reads_only_the_cached_digest(self):
