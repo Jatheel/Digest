@@ -634,24 +634,66 @@ def _is_valid_image_url(url: str | None) -> bool:
     blocked = (
         "1x1", "pixel", "spacer", "feedburner", "statcounter", "twemoji",
         "avatar", "favicon", "site-logo", "icon-", "blank.gif", "dot.gif",
+        "-100x100.", "_100x100.", "/100x100/", "150x150",
     )
     if any(b in lowered for b in blocked):
         return False
     return True
 
 
+def _upgrade_image_url(url: str | None) -> str | None:
+    """Upgrade known thumbnail URLs to high-resolution versions."""
+    if not url or not isinstance(url, str):
+        return None
+    url = url.strip()
+    if not _is_valid_image_url(url):
+        return None
+
+    # 1. Blogger / Google User Content / Google Photos (e.g. NewMannar / YarlSri Media):
+    # Pattern: /s72-c/, /s150/, /w72-h72/, etc. -> upgrade to crystal-clear /s1200/
+    if "googleusercontent.com" in url or "bp.blogspot.com" in url:
+        url = re.sub(r"/(s\d+(-[a-z0-9_]+)?|w\d+-h\d+(-[a-z0-9_]+)?)/", "/s1200/", url)
+
+    # 2. BBC News images (ichef.bbci.co.uk):
+    # Upgrade 240px thumbnails to 976px HD images
+    if "ichef.bbci.co.uk" in url:
+        url = re.sub(r"/ace/standard/\d+/", "/ace/standard/976/", url)
+        url = re.sub(r"/images/ic/\d+x\d+/", "/images/ic/976x549/", url)
+        url = re.sub(r"/ace/ws/\d+/", "/ace/ws/976/", url)
+
+    # 3. YouTube thumbnails:
+    # Upgrade standard thumbnail to high-definition
+    if "i.ytimg.com" in url:
+        url = url.replace("/hqdefault.jpg", "/sddefault.jpg")
+
+    # 4. WordPress dimension suffixes (e.g. image-150x150.jpg, image-300x200.jpg):
+    wp_thumb = re.search(r"-(\d{2,3})x(\d{2,3})(\.(?:jpe?g|png|webp))(?:\?.*)?$", url, re.I)
+    if wp_thumb and (int(wp_thumb.group(1)) <= 300 or int(wp_thumb.group(2)) <= 300):
+        url = url[:wp_thumb.start()] + wp_thumb.group(3)
+
+    return url
+
+
+def _is_low_res_image(url: str | None) -> bool:
+    """Whether an image URL points to a known tiny thumbnail."""
+    if not url:
+        return True
+    low = url.lower()
+    return any(p in low for p in ("/s72", "/s100", "/s150", "100x100", "150x150", "avatar", "thumb", "240x135", "/240/"))
+
+
 def _extract_entry_image(entry) -> str | None:
-    # 1. media_thumbnail
-    for m in entry.get("media_thumbnail", []):
-        url = m.get("url")
-        if _is_valid_image_url(url):
-            return url
-    # 2. media_content
+    # 1. media_content (primary full-resolution media object)
     for m in entry.get("media_content", []):
         url = m.get("url")
         if _is_valid_image_url(url):
             if "image" in m.get("type", "") or m.get("medium") == "image" or any(url.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp")):
-                return url
+                return _upgrade_image_url(url)
+    # 2. media_thumbnail
+    for m in entry.get("media_thumbnail", []):
+        url = m.get("url")
+        if _is_valid_image_url(url):
+            return _upgrade_image_url(url)
     # 3. enclosures and links
     try:
         enclosures = entry.get("enclosures", []) or []
@@ -660,7 +702,7 @@ def _extract_entry_image(entry) -> str | None:
     for enc in enclosures:
         url = enc.get("href") or enc.get("url")
         if _is_valid_image_url(url) and ("image" in enc.get("type", "") or any(url.lower().endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp"))):
-            return url
+            return _upgrade_image_url(url)
     try:
         links = entry.get("links", []) or []
     except Exception:
@@ -669,15 +711,27 @@ def _extract_entry_image(entry) -> str | None:
         if link.get("rel") == "enclosure" or "image" in link.get("type", ""):
             url = link.get("href") or link.get("url")
             if _is_valid_image_url(url):
-                return url
-    # 4. inline <img> in summary or content
+                return _upgrade_image_url(url)
+    # 4. inline <img> in summary or content (skipping tiny icons/avatars)
     content_list = entry.get("content", [])
     content_val = content_list[0].get("value", "") if isinstance(content_list, list) and content_list else ""
     raw = (entry.get("summary") or "") + " " + content_val
-    match = re.search(r'<img[^>]+src=["\'](https?://[^"\']+)["\']', raw, re.I)
-    if match and _is_valid_image_url(match.group(1)):
-        return match.group(1)
+    for img_tag in re.finditer(r'<img\b([^>]+)>', raw, re.I):
+        attrs_str = img_tag.group(1)
+        src_match = re.search(r'src=["\'](https?://[^"\']+)["\']', attrs_str, re.I)
+        if not src_match:
+            continue
+        cand = src_match.group(1)
+        w_match = re.search(r'width=["\']?(\d+)', attrs_str, re.I)
+        h_match = re.search(r'height=["\']?(\d+)', attrs_str, re.I)
+        if w_match and int(w_match.group(1)) < 160:
+            continue
+        if h_match and int(h_match.group(1)) < 120:
+            continue
+        if _is_valid_image_url(cand):
+            return _upgrade_image_url(cand)
     return None
+
 
 
 def _parse_news_entry(entry, feed: dict, feed_title: str) -> dict | None:
@@ -772,7 +826,7 @@ def _parse_youtube_entry(entry, feed: dict, feed_title: str) -> dict | None:
             break
         keep.append(line)
     video_id = entry.get("yt_videoid")
-    image_url = f"https://i.ytimg.com/vi/{video_id}/hqdefault.jpg" if video_id else _extract_entry_image(entry)
+    image_url = f"https://i.ytimg.com/vi/{video_id}/sddefault.jpg" if video_id else _extract_entry_image(entry)
     return {
         "title": title,
         "text": clean_text(" ".join(keep)),
@@ -841,7 +895,7 @@ class _ArticleTextParser(HTMLParser):
             if not self.image and key in {"og:image", "twitter:image", "og:image:url"}:
                 candidate = attributes.get("content", "")
                 if _is_valid_image_url(candidate):
-                    self.image = candidate
+                    self.image = _upgrade_image_url(candidate) or candidate
         elif tag == "p" and self._skip_depth == 0 and len(self.paragraphs) < self.MAX_PARAGRAPHS:
             self._current = []
 
@@ -1064,12 +1118,15 @@ def build_story(group: dict, topic: str) -> dict | None:
     haystack = f"{title} {description}".lower()
 
     # Find the best image for this story: lead article image or any cluster item image
-    image_url = best.get("image_url")
-    if not image_url:
+    image_url = _upgrade_image_url(best.get("image_url"))
+    if not image_url or _is_low_res_image(image_url):
         for i in group["items"]:
-            if i.get("image_url"):
-                image_url = i["image_url"]
+            cand = _upgrade_image_url(i.get("image_url"))
+            if cand and not _is_low_res_image(cand):
+                image_url = cand
                 break
+        if not image_url and best.get("image_url"):
+            image_url = _upgrade_image_url(best["image_url"])
 
     story = {
         "id": stable_story_id(group["items"]),
@@ -1110,7 +1167,7 @@ def _enrich_items(items: list[dict]) -> None:
     targets = []
     for item in items:
         url = item.get("article_url") or ""
-        if url and not item.get("_enriched") and (_is_thin(item) or not item.get("image_url")):
+        if url and not item.get("_enriched") and (_is_thin(item) or not item.get("image_url") or _is_low_res_image(item.get("image_url"))):
             item["_enriched"] = True
             targets.append(item)
     if not targets:
@@ -1119,8 +1176,10 @@ def _enrich_items(items: list[dict]) -> None:
         for item, (text, img) in zip(targets, pool.map(lambda i: fetch_article_data(i["article_url"]), targets)):
             if len(text) > len(item.get("text") or ""):
                 item["text"] = text
-            if not item.get("image_url") and img:
-                item["image_url"] = img
+            if img:
+                upgraded = _upgrade_image_url(img) or img
+                if not item.get("image_url") or _is_low_res_image(item.get("image_url")):
+                    item["image_url"] = upgraded
 
 
 def _prerank(group: dict) -> tuple:

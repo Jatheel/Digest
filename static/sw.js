@@ -2,7 +2,7 @@
 // Network first so new stories and UI changes show up immediately; the cached
 // copy is only used when offline. Paths are relative so the app works both at
 // "/" (local server) and under "/Digest/" (GitHub Pages).
-const CACHE = "digest-shell-v4";
+const CACHE = "digest-shell-v5";
 const SHELL = ["./", "index.html", "app.js", "model.js", "config.js", "model_defaults.json", "manifest.json", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (event) => {

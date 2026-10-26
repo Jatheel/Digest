@@ -295,17 +295,40 @@
       ? externalLink(story.best_link, {}, story.title, openStory)
       : story.title);
 
+    function upgradeImageUrl(url) {
+      if (!url || typeof url !== "string") return url;
+      if (url.includes("googleusercontent.com") || url.includes("bp.blogspot.com")) {
+        url = url.replace(/\/(s\d+(-[a-z0-9_]+)?|w\d+-h\d+(-[a-z0-9_]+)?)\//i, "/s1200/");
+      }
+      if (url.includes("ichef.bbci.co.uk")) {
+        url = url.replace(/\/ace\/standard\/\d+\//i, "/ace/standard/976/")
+                 .replace(/\/images\/ic\/\d+x\d+\//i, "/images/ic/976x549/")
+                 .replace(/\/ace\/ws\/\d+\//i, "/ace/ws/976/");
+      }
+      if (url.includes("i.ytimg.com")) {
+        url = url.replace("/hqdefault.jpg", "/sddefault.jpg");
+      }
+      return url;
+    }
+
     let media = null;
-    if (story.image_url) {
-      const img = el("img", {
-        src: story.image_url,
-        alt: story.title,
-        loading: "lazy",
-        decoding: "async",
-      });
+    const cleanImgUrl = upgradeImageUrl(story.image_url);
+    if (cleanImgUrl) {
+      const img = document.createElement("img");
+      img.alt = story.title;
+      img.loading = "lazy";
+      img.decoding = "async";
+      img.referrerPolicy = "no-referrer";
+      img.onload = () => {
+        if (img.naturalWidth > 0 && img.naturalWidth < 120) {
+          if (media && media.parentNode) media.remove();
+        }
+      };
       img.onerror = () => {
         if (media && media.parentNode) media.remove();
       };
+      img.src = cleanImgUrl;
+
       if (story.best_link) {
         media = el("div", { className: "card-media" }, [
           externalLink(story.best_link, { className: "card-media-link" }, img, openStory)

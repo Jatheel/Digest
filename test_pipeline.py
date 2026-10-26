@@ -350,6 +350,21 @@ class DigestTests(unittest.TestCase):
                                        "summary": '<img src="https://feeds.feedburner.com/~r/test/~4/1x1.gif" />'})
         self.assertIsNone(p._extract_entry_image(e5))
 
+    def test_image_url_upgraded_to_high_resolution(self):
+        # Blogger s72-c thumbnail upgraded to s1200 HD
+        blogger_thumb = "https://blogger.googleusercontent.com/img/b/test/s72-c/photo.jpg"
+        self.assertEqual(p._upgrade_image_url(blogger_thumb), "https://blogger.googleusercontent.com/img/b/test/s1200/photo.jpg")
+
+        # BBC 240px thumbnail upgraded to 976px HD
+        bbc_thumb = "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/1234/live/test.jpg"
+        self.assertEqual(p._upgrade_image_url(bbc_thumb), "https://ichef.bbci.co.uk/ace/standard/976/cpsprodpb/1234/live/test.jpg")
+        bbc_ic = "https://ichef.bbci.co.uk/images/ic/240x135/p0test.jpg"
+        self.assertEqual(p._upgrade_image_url(bbc_ic), "https://ichef.bbci.co.uk/images/ic/976x549/p0test.jpg")
+
+        # YouTube hqdefault upgraded to sddefault
+        yt_thumb = "https://i.ytimg.com/vi/abc123/hqdefault.jpg"
+        self.assertEqual(p._upgrade_image_url(yt_thumb), "https://i.ytimg.com/vi/abc123/sddefault.jpg")
+
     def test_story_contains_image_url(self):
         it = item("Rover discovers water on Mars", "BBC",
                   text="Scientists confirmed active water deposits.",
@@ -358,6 +373,7 @@ class DigestTests(unittest.TestCase):
         group = {"items": [it]}
         story = p.build_story(group, "Science")
         self.assertEqual(story["image_url"], "https://img.example.com/mars.jpg")
+
 
 
 class ServerTests(unittest.TestCase):
